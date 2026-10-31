@@ -151,6 +151,10 @@
         } else if (action === "quote") {
           prefix = "> ";
           body = body || "引用或结论";
+        } else if (action === "wiki") {
+          prefix = "[[";
+          suffix = "]]";
+          body = body || "主题名";
         }
 
         textarea.value = before + prefix + body + suffix + after;

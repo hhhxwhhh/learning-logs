@@ -16,6 +16,14 @@ def markdown_filter(value):
     return mark_safe(render_markdown(value or ""))
 
 
+@register.filter(name="md_links")
+def md_links_filter(value, user):
+    """渲染 Markdown 并把 [[双链]] 转成指向主题的链接。"""
+    from learning_logs.services import links
+
+    return mark_safe(render_markdown(links.render(value or "", user)))
+
+
 @register.filter(name="hours")
 def hours_filter(value):
     """把 timedelta 格式化为「X 小时 Y 分」。"""

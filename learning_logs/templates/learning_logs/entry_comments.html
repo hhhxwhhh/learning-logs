@@ -25,7 +25,7 @@
         </a>
       </div>
       <div class="card__body">
-        <div class="prose">{{ entry.text|markdown }}</div>
+        <div class="prose">{{ entry.text|md_links:user }}</div>
       </div>
     </article>
 

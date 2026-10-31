@@ -43,6 +43,7 @@ from .services import achievements as achievements_service
 from .services import export as export_service
 from .services import garden as garden_service
 from .services import graph as graph_service
+from .services import links as links_service
 from .services import notifications as notifications_service
 from .services import report as report_service
 from .services import search as search_service
@@ -117,6 +118,7 @@ def topic(request, topic_id):
         'entries': entries,
         'active_session': active_session,
         'topic_tags': tags_service.tags_of(topic),
+        'backlinks': links_service.backlinks(topic),
     }
     return render(request, 'learning_logs/topic.html', context)
 

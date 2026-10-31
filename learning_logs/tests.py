@@ -25,6 +25,7 @@ from .services import (
     export,
     garden,
     graph,
+    links,
     notifications,
     report,
     search,
@@ -1246,3 +1247,48 @@ class TimelineTests(BaseTestCase):
         data = timeline.build(self.alice, months=12)
         self.assertEqual(data["total_entries"], 1)
         self.assertNotIn("Bob 的主题", data["months"][0]["topics"])
+
+
+class WikiLinkTests(BaseTestCase):
+    """[[双链]] 渲染与反向链接。"""
+
+    def test_extract_names(self):
+        self.assertEqual(links.extract("参考 [[Django ORM]] 与 [[缓存]] 还有 [[Django ORM]]"), ["Django ORM", "缓存"])
+
+    def test_render_links_to_existing_topic(self):
+        target = Topic.objects.create(text="缓存策略", owner=self.alice)
+        text = "这里要配合 [[缓存策略]] 一起看。"
+        rendered = links.render(text, self.alice)
+        self.assertIn(f"[/缓存策略](/topic/{target.id})".replace("/缓存策略", "缓存策略"), rendered)
+        self.assertNotIn("[[", rendered)
+
+    def test_render_keeps_unknown_topic_as_text(self):
+        rendered = links.render("指向 [[不存在的主题]]", self.alice)
+        self.assertIn("[[不存在的主题]]", rendered)
+
+    def test_backlinks_finds_referring_entries(self):
+        other = Topic.objects.create(text="缓存策略", owner=self.alice)
+        Entry.objects.create(topic=other, text="参见 [[Django ORM]] 的惰性求值")
+        found = links.backlinks(self.topic)
+        self.assertEqual(len(found), 1)
+        self.assertIn("Django ORM", found[0].text)
+
+    def test_backlinks_ignores_other_users(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        Entry.objects.create(topic=bob_topic, text="参见 [[Django ORM]]")
+        self.assertEqual(links.backlinks(self.topic), [])
+
+    def test_topic_page_shows_backlinks(self):
+        other = Topic.objects.create(text="缓存策略", owner=self.alice)
+        Entry.objects.create(topic=other, text="参见 [[Django ORM]] 的实现")
+        response = self.client.get(reverse("learning_logs:topic", args=[self.topic.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "反向链接")
+        self.assertEqual(len(response.context["backlinks"]), 1)
+
+    def test_entry_page_renders_link(self):
+        target = Topic.objects.create(text="缓存策略", owner=self.alice)
+        entry = Entry.objects.create(topic=self.topic, text="参考 [[缓存策略]]")
+        response = self.client.get(reverse("learning_logs:entry_comments", args=[entry.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f"/topic/{target.id}")

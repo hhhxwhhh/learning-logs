@@ -195,7 +195,7 @@
         </div>
       </div>
       <div class="card__body">
-        <div class="prose">{{ entry.text|markdown }}</div>
+        <div class="prose">{{ entry.text|md_links:user }}</div>
       </div>
     </article>
     {% empty %}
@@ -263,6 +263,33 @@
           {% csrf_token %}
           <button class="btn btn--sm" type="submit">生成分享链接</button>
         </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__head">
+        <h3>反向链接</h3>
+        <span class="tiny muted">{{ backlinks|length }} 条引用</span>
+      </div>
+      <div class="card__body">
+        {% if backlinks %}
+        <div class="list">
+          {% for item in backlinks %}
+          <a class="list__item list__item--link" href="{% url 'learning_logs:entry_comments' item.id %}">
+            <div class="list__main">
+              <span class="list__title">{{ item.text|md_plain|truncatechars:40 }}</span>
+              <span class="list__meta">{{ item.topic.text }} · {{ item.date_added|date:"m-d" }}</span>
+            </div>
+            <svg width="16" height="16" class="muted"><use href="#i-arrow-right" /></svg>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="tiny muted">
+          还没有别的笔记用 <code>[[{{ topic.text }}]]</code> 指向这里。在任意笔记里写下
+          <code>[[主题名]]</code> 就能建立双向链接。
+        </p>
         {% endif %}
       </div>
     </div>
