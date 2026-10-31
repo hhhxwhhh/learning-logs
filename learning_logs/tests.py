@@ -1159,3 +1159,63 @@ class AccessibilityTests(BaseTestCase):
         body = response.content.decode()
         self.assertIn("<label", body)
         self.assertIn("csrfmiddlewaretoken", body)
+
+
+class SmokeTests(BaseTestCase):
+    """关键页面一次性冒烟：确保导航能到的地方都能打开。"""
+
+    PATHS = [
+        "/",
+        "/topics/",
+        "/new_topic/",
+        "/learning-paths/",
+        "/goals/",
+        "/dashboard/",
+        "/analytics/",
+        "/garden/",
+        "/graph/",
+        "/tags/",
+        "/today/",
+        "/focus/",
+        "/flashcards/",
+        "/flashcards/review/",
+        "/flashcards/stats/",
+        "/import/",
+        "/data/",
+        "/notifications/",
+        "/features/",
+        "/api/docs/",
+        "/settings/api/",
+        "/weekly/",
+        "/achievements/",
+        "/healthz/",
+        "/offline/",
+    ]
+
+    def test_pages_open(self):
+        for path in self.PATHS:
+            response = self.client.get(path)
+            self.assertIn(
+                response.status_code,
+                (200, 302),
+                f"{path} 返回了 {response.status_code}",
+            )
+
+    def test_topic_and_entry_pages(self):
+        self.assertEqual(
+            self.client.get(f"/topic/{self.topic.id}").status_code, 200
+        )
+        self.assertEqual(
+            self.client.get(f"/new_entry/{self.topic.id}").status_code, 200
+        )
+        self.assertEqual(
+            self.client.get(f"/edit_entry/{self.entry.id}").status_code, 200
+        )
+        self.assertEqual(
+            self.client.get(f"/entry/{self.entry.id}/comments/").status_code, 200
+        )
+
+    def test_anonymous_is_redirected(self):
+        anonymous = Client()
+        for path in ["/topics/", "/graph/", "/today/", "/notifications/"]:
+            self.assertEqual(anonymous.get(path).status_code, 302, path)
