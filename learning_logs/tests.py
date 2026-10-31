@@ -30,6 +30,7 @@ from .services import (
     search,
     stats,
     tags,
+    timeline,
 )
 
 
@@ -1184,6 +1185,7 @@ class SmokeTests(BaseTestCase):
         "/data/",
         "/notifications/",
         "/features/",
+        "/timeline/",
         "/api/docs/",
         "/settings/api/",
         "/weekly/",
@@ -1219,3 +1221,28 @@ class SmokeTests(BaseTestCase):
         anonymous = Client()
         for path in ["/topics/", "/graph/", "/today/", "/notifications/"]:
             self.assertEqual(anonymous.get(path).status_code, 302, path)
+
+
+class TimelineTests(BaseTestCase):
+    def test_timeline_groups_by_month(self):
+        data = timeline.build(self.alice, months=12)
+        self.assertEqual(data["total_entries"], 1)
+        self.assertEqual(len(data["months"]), 1)
+        self.assertIn("Django ORM", data["months"][0]["topics"])
+
+    def test_timeline_page_renders(self):
+        response = self.client.get(reverse("learning_logs:timeline"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "学习时间线")
+        self.assertEqual(response.context["range_months"], 12)
+
+    def test_timeline_range_switch(self):
+        response = self.client.get(reverse("learning_logs:timeline"), {"months": "6"})
+        self.assertEqual(response.context["range_months"], 6)
+
+    def test_timeline_only_own_data(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        Entry.objects.create(topic=bob_topic, text="Bob 的笔记")
+        data = timeline.build(self.alice, months=12)
+        self.assertEqual(data["total_entries"], 1)
+        self.assertNotIn("Bob 的主题", data["months"][0]["topics"])

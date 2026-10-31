@@ -1,0 +1,108 @@
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
+
+{% block title %}学习时间线 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Timeline</div>
+    <h1>学习时间线</h1>
+    <p>按月回看：哪个月写得最多、投入了多少、都学了哪些主题。</p>
+  </div>
+  <div class="cluster">
+    <div class="cluster" role="group" aria-label="时间范围">
+      <a class="btn btn--sm {% if range_months == 6 %}btn--primary{% else %}btn--ghost{% endif %}" href="?months=6">近 6 个月</a>
+      <a class="btn btn--sm {% if range_months == 12 %}btn--primary{% else %}btn--ghost{% endif %}" href="?months=12">近 12 个月</a>
+      <a class="btn btn--sm {% if range_months == 24 %}btn--primary{% else %}btn--ghost{% endif %}" href="?months=24">近 24 个月</a>
+    </div>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">区间笔记</span>
+    <span class="metric__value">{{ total_entries }}</span>
+    <span class="metric__hint">近 {{ range_months }} 个月</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">新增闪卡</span>
+    <span class="metric__value">{{ total_cards }}</span>
+    <span class="metric__hint">同期创建的卡片</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">学习时长</span>
+    <span class="metric__value" style="font-size: 1.3rem">{{ total_minutes|dur }}</span>
+    <span class="metric__hint">来自计时与番茄钟</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">最活跃月份</span>
+    <span class="metric__value" style="font-size: 1.3rem">{% if peak %}{{ peak.key }}{% else %}暂无{% endif %}</span>
+    <span class="metric__hint">{% if peak %}{{ peak.entry_count }} 条笔记{% else %}还没有记录{% endif %}</span>
+  </div>
+</div>
+
+{% if months %}
+<div class="timeline">
+  {% for month in months %}
+  <section class="timeline__item">
+    <div class="timeline__marker" aria-hidden="true"></div>
+    <div class="card">
+      <div class="card__head">
+        <h3>{{ month.label }}</h3>
+        <div class="cluster">
+          <span class="badge badge--outline">{{ month.entry_count }} 条笔记</span>
+          {% if month.card_count %}<span class="badge badge--accent">{{ month.card_count }} 张卡</span>{% endif %}
+          {% if month.minutes %}<span class="badge badge--teal">{{ month.minutes|dur }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="card__body stack-sm">
+        <span class="progress" title="本月笔记量相对峰值">
+          <span
+            class="progress__bar"
+            style="width: {% widthratio month.entry_count max_entry_count 100 %}%"
+          ></span>
+        </span>
+
+        {% if month.topics %}
+        <div class="chip-row">
+          {% for name in month.topics %}
+          <span class="chip">{{ name }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if month.entries %}
+        <div class="list">
+          {% for entry in month.entries %}
+          <a class="list__item list__item--link" href="{% url 'learning_logs:topic' entry.topic.id %}">
+            <div class="list__main">
+              <span class="list__title">{{ entry.text|md_plain|truncatechars:60 }}</span>
+              <span class="list__meta">
+                <span>{{ entry.topic.text }}</span>
+                <span>{{ entry.date_added|date:"m-d H:i" }}</span>
+              </span>
+            </div>
+            <svg width="16" height="16" class="muted"><use href="#i-arrow-right" /></svg>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="tiny muted">这个月只有卡片或计时记录，没有新增笔记。</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="empty">
+    <div class="empty__icon"><svg width="24" height="24"><use href="#i-clock" /></svg></div>
+    <h3>这段时间还是空白</h3>
+    <p>写几条笔记、做一次计时，时间线就会开始生长。</p>
+    <a class="btn btn--primary mt-2" href="{% url 'learning_logs:new_topic' %}">新建主题</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

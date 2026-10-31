@@ -48,6 +48,7 @@ from .services import report as report_service
 from .services import search as search_service
 from .services import stats
 from .services import tags as tags_service
+from .services import timeline as timeline_service
 from .utils.markdown import render_markdown
 
 logger = logging.getLogger(__name__)
@@ -683,6 +684,8 @@ FEATURE_GROUPS = [
              "desc": "徽章体系，记录坚持的痕迹"},
             {"name": "提醒中心", "url": "/notifications/", "icon": "i-bell", "key": "",
              "desc": "到期复习、连续中断与目标临期提醒"},
+            {"name": "学习时间线", "url": "/timeline/", "icon": "i-clock", "key": "l",
+             "desc": "按月回看笔记、卡片与投入时长"},
         ],
     },
     {
@@ -722,6 +725,7 @@ QUICK_ACTIONS = [
     {"label": "开放 API", "url": "/api/docs/", "keywords": ["api", "接口", "令牌", "token"]},
     {"label": "提醒中心", "url": "/notifications/", "keywords": ["提醒", "通知", "notification"]},
     {"label": "导入中心", "url": "/import/", "keywords": ["导入", "anki", "批量", "import"]},
+    {"label": "学习时间线", "url": "/timeline/", "keywords": ["时间线", "timeline", "历史", "回顾"]},
 ]
 
 
@@ -1274,4 +1278,18 @@ def suggest_tags(request, topic_id):
             "applied": tags_service.tags_input_of(topic),
             "message": f"已补充 {len(names)} 个 AI 建议标签。",
         }
+    )
+
+
+@login_required
+def timeline(request):
+    """学习时间线：按月回看自己的学习轨迹。"""
+    try:
+        months = max(3, min(36, int(request.GET.get("months", "12"))))
+    except (TypeError, ValueError):
+        months = 12
+    return render(
+        request,
+        "learning_logs/timeline.html",
+        timeline_service.build(request.user, months=months),
     )
