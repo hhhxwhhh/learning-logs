@@ -1,9 +1,11 @@
 /* 知迹 Service Worker：静态资源缓存优先，页面走网络优先并带回退 */
-const VERSION = "zhiji-shell-v1";
+const VERSION = "zhiji-shell-v2";
 const PRECACHE = [
   "/offline/",
-  "/static/css/app.css?v=3",
-  "/static/js/app.js?v=3",
+  "/static/css/app.css?v=4",
+  "/static/js/app.js?v=4",
+  "/static/js/editor.js?v=1",
+  "/static/js/focus.js?v=1",
   "/static/manifest.webmanifest",
   "/static/icons/icon-192.png",
 ];
@@ -75,9 +77,20 @@ self.addEventListener("fetch", function (event) {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(function () {
-        return caches.match("/offline/");
-      })
+      fetch(request)
+        .then(function (response) {
+          // 在线时把页面顺手缓存一份，断网后仍可回看
+          const copy = response.clone();
+          caches.open(VERSION).then(function (cache) {
+            cache.put(request, copy);
+          });
+          return response;
+        })
+        .catch(function () {
+          return caches.match(request).then(function (cached) {
+            return cached || caches.match("/offline/");
+          });
+        })
     );
   }
 });

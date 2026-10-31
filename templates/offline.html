@@ -14,7 +14,7 @@
         } catch (e) {}
       })();
     </script>
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=3" />
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=4" />
   </head>
   <body>
     <main class="page">
@@ -30,6 +30,14 @@
               <button class="btn btn--primary" type="button" onclick="location.reload()">重新加载</button>
               <a class="btn btn--ghost" href="/">回到首页</a>
             </div>
+
+            <div class="quick-grid mt-2" style="width: 100%">
+              <a class="quick-tile" href="/today/">今日速览</a>
+              <a class="quick-tile" href="/flashcards/review/">闪卡复习</a>
+              <a class="quick-tile" href="/graph/">知识图谱</a>
+              <a class="quick-tile" href="/topics/">我的主题</a>
+            </div>
+            <p class="tiny muted">这些页面在联网访问过后会自动缓存，离线也能打开。</p>
           </div>
         </div>
         <p class="tiny muted center mt-3">离线页面已由 Service Worker 缓存</p>

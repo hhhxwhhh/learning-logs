@@ -19,6 +19,18 @@ Django 服务端渲染，零前端框架依赖，可完全离线运行，也可�
 | 学习周报 | 本周/上周数据对比，AI 三段式复盘，无模型时给规则建议 |
 | 全局搜索 | ⌘K 命令面板，主题/笔记/功能页混合检索，关键词高亮 |
 | 数据导出 | Markdown ZIP、Anki CSV、JSON 完整备份，支持 Markdown 导入 |
+| 标签体系 | Tag + GenericForeignKey，主题与笔记共用一套标签，标签云与标签详情页 |
+| 知识图谱 | 服务端力导向布局，共享标签的主题自动连线，输出强关联与孤立知识 |
+| 今日速览 | 今日笔记、专注时长、连续天数、待复习卡片与 30 天前记忆闪回 |
+| 专注计时 | 番茄钟（25/5 分钟），结束即写入学习会话并进入统计 |
+| Markdown 编辑器 | 零依赖工具条 + 实时预览，支持列表、待办、代码与引用 |
+| 功能地图 | 19+ 项能力分组汇总、关键词筛选，兼作快捷键速查表 |
+| 键盘快捷键 | `⌘K` 搜索、`?` 打开功能地图、`G` 前缀直达各页面 |
+| 开放 API | 个人令牌鉴权，`/api/v1/` 七个 JSON 接口 + 文档页 + 令牌管理 |
+| 站内提醒 | 到期复习、连续中断、周报待生成、目标临期、主题搁置五类提醒，顶栏未读铃铛 |
+| 导入中心 | 批量文本建卡、Anki CSV 上传、Markdown 笔记导入，按正面去重 |
+| 复习统计 | 掌握度三档分布、近 14 天复习量柱图、按主题掌握进度 |
+| PWA | manifest + Service Worker + 离线兜底页，页面访问后自动缓存 |
 
 ## 技术栈
 
@@ -28,6 +40,8 @@ Django 服务端渲染，零前端框架依赖，可完全离线运行，也可�
 - **SSE** 流式输出，原生 `fetch` + `ReadableStream` 增量渲染
 - **自研 CSS 设计系统**：设计令牌、明暗主题、`:has()` 与 `color-mix()`，无 Bootstrap / Tailwind 依赖
 - **Gunicorn + WhiteNoise** 生产部署，容器内非 root 运行，带 `/healthz` 探活
+- **PWA**：Web App Manifest + Service Worker，页面访问后自动缓存，断网可回看
+- **零依赖前端组件**：Markdown 编辑器、知识图谱力导向布局、番茄钟、命令面板全部自研
 
 ## 快速开始
 
@@ -93,13 +107,22 @@ learning_logs/         主题、笔记、路径、计时、闪卡、统计服务
   services/search.py   多关键词检索、相关度排序与高亮片段
   services/garden.py   知识树几何计算、成长阶段、今日回顾
   services/report.py   学习周报统计与 AI 复盘生成
-  services/export.py   Markdown / CSV / JSON 导出与 Markdown 导入
+  services/export.py   Markdown / CSV / JSON 导出与导入（含批量建卡、Anki CSV）
+  services/tags.py     标签解析、同步与标签云
+  services/graph.py    知识图谱的关联边与力导向布局
+  services/notifications.py  站内提醒的生成、幂等与裁剪
+  services/api_access.py     开放 API 的鉴权与序列化
+  api_views.py         /api/v1/ 只读与写入接口
+  context_processors.py      把未读提醒带进所有页面
   templatetags/        Markdown、时长格式化过滤器
 accounts/              自定义用户、注册登录、个人中心
 analytics/             学习分析（总览 / 时间统计 / 进度报告 / 主题分析）
 templates/partials/    图标精灵、表单字段等共享片段
 static/css/app.css     设计系统（2000 行，无外部依赖）
-static/js/app.js       主题切换、Toast、代码复制等原生交互
+static/js/app.js       主题切换、Toast、命令面板、快捷键导航
+static/js/editor.js    Markdown 编辑器工具条与实时预览
+static/js/focus.js     番茄钟计时与写入学习会话
+static/js/sw.js        Service Worker：静态缓存 + 页面回退
 ```
 
 ## 测试
@@ -108,7 +131,27 @@ static/js/app.js       主题切换、Toast、代码复制等原生交互
 python manage.py test
 ```
 
-覆盖模型进度计算、SM-2 间隔算法、越权访问、搜索隔离、AI 流式接口与结构化输出解析（AI 调用全部使用假 Provider，不联网）。
+121 个测试用例，覆盖模型进度计算、SM-2 间隔算法、越权访问、标签与图谱、通知幂等、
+开放 API 鉴权、导入去重、AI 流式接口与结构化输出解析（AI 调用全部使用假 Provider，不联网）。
+
+## 页面地图
+
+| 路径 | 用途 |
+| --- | --- |
+| `/` | 产品首页，登录用户额外看到「我的学习快照」 |
+| `/topics/` `/topic/<id>` | 主题列表与主题详情（含条目搜索、状态/标签筛选） |
+| `/dashboard/` `/analytics/` | 仪表盘与学习分析 |
+| `/today/` | 今日速览：待办、连续天数、记忆闪回 |
+| `/focus/` | 专注计时（番茄钟） |
+| `/flashcards/` `/flashcards/review/` `/flashcards/stats/` | 闪卡管理、今日复习、复习统计 |
+| `/learning-paths/` | 学习路径编排 |
+| `/garden/` `/graph/` | 学习花园（知识树）与知识图谱 |
+| `/tags/` `/tags/<id>/` | 标签云与标签详情 |
+| `/weekly/` `/achievements/` | 学习周报与成就徽章 |
+| `/import/` `/data/` | 导入中心与导出备份 |
+| `/notifications/` | 提醒中心 |
+| `/settings/api/` `/api/docs/` | API 令牌管理与接口文档 |
+| `/features/` | 功能地图与快捷键速查 |
 
 ## 部署
 

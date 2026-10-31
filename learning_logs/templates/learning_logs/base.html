@@ -24,7 +24,7 @@
     <link rel="manifest" href="{% url 'manifest' %}" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="知迹" />
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=3" />
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=4" />
     {% block extra_css %}{% endblock %}
   </head>
   <body>
@@ -292,13 +292,13 @@
       <div class="container footer__inner">
         <span>© {% now "Y" %} 知迹 Learning Log · 用 Django 构建</span>
         <span class="cluster">
-          <span class="badge badge--outline">v2.0</span>
+          <span class="badge badge--outline">v3.0</span>
           <a href="{% url 'learning_logs:index' %}">关于</a>
         </span>
       </div>
     </footer>
 
-    <script src="{% static 'js/app.js' %}?v=3" defer></script>
+    <script src="{% static 'js/app.js' %}?v=4" defer></script>
     {% block extra_js %}{% endblock %}
   </body>
 </html>

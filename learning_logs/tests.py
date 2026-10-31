@@ -85,6 +85,10 @@ class TopicModelTests(BaseTestCase):
     def test_topic_str_and_ordering(self):
         self.assertEqual(str(self.topic), "Django ORM")
         newer = Topic.objects.create(text="Python 异步", owner=self.alice)
+        # 同一毫秒创建的主题时间戳可能相同，显式拉开时间以保证排序稳定
+        Topic.objects.filter(id=newer.id).update(
+            date_added=timezone.now() + timedelta(minutes=1)
+        )
         self.assertEqual(list(Topic.objects.filter(owner=self.alice))[0], newer)
 
 
@@ -1017,3 +1021,24 @@ class TopicFilterTests(BaseTestCase):
         self.assertContains(response, "data-entry-filter")
         self.assertContains(response, "data-entry-item")
         self.assertContains(response, "筛选测试")
+
+
+class PwaUpdateTests(BaseTestCase):
+    def test_service_worker_caches_new_assets(self):
+        response = self.client.get(reverse("service_worker"))
+        body = response.content.decode()
+        self.assertIn("zhiji-shell-v2", body)
+        self.assertIn("editor.js", body)
+        self.assertIn("focus.js", body)
+
+    def test_offline_page_links_key_pages(self):
+        response = self.client.get(reverse("offline"))
+        self.assertContains(response, "/today/")
+        self.assertContains(response, "/graph/")
+
+    def test_manifest_still_valid(self):
+        response = self.client.get(reverse("manifest"))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["name"])
+        self.assertTrue(payload["icons"])
