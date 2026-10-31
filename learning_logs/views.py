@@ -642,7 +642,7 @@ FEATURE_GROUPS = [
             {"name": "学习路径", "url": "/learning-paths/", "icon": "i-route", "key": "p",
              "desc": "把多个主题串成一条有顺序的路线"},
             {"name": "标签", "url": "/tags/", "icon": "i-tag", "key": "",
-             "desc": "横向索引，跨主题复用同一套关键词"},
+             "desc": "横向索引，跨主题复用同一套关键词（主题页可用 AI 建议标签）"},
         ],
     },
     {

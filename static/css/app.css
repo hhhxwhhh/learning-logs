@@ -2740,6 +2740,48 @@
     font-weight: 650;
   }
 
+  /* 无障碍 -------------------------------------------------------------- */
+  .skip-link {
+    position: absolute;
+    left: 1rem;
+    top: -3rem;
+    z-index: 100;
+    padding: 0.5rem 0.9rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: top var(--transition);
+  }
+
+  .skip-link:focus {
+    top: 0.75rem;
+  }
+
+  [data-theme="dark"] .tag-cloud__count {
+    opacity: 0.75;
+  }
+
+  @media (max-width: 720px) {
+    .mobile-nav {
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .dropmenu__panel {
+      max-width: calc(100vw - 2rem);
+    }
+
+    .quick-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .focus-dial__time {
+      font-size: 2.1rem;
+    }
+  }
+
 /* --------------------------------------------------------------------------
    工具类
    -------------------------------------------------------------------------- */

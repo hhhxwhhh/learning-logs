@@ -1142,3 +1142,20 @@ class NoteTemplateTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "data-template-picker")
         self.assertContains(response, "templates_picker.js")
+
+
+class AccessibilityTests(BaseTestCase):
+    def test_skip_link_and_main_landmark(self):
+        response = self.client.get(reverse("learning_logs:topics"))
+        self.assertContains(response, "skip-link")
+        self.assertContains(response, 'id="main-content"')
+
+    def test_current_page_is_announced(self):
+        response = self.client.get(reverse("learning_logs:topics"))
+        self.assertContains(response, 'aria-current="page"')
+
+    def test_forms_have_labels(self):
+        response = self.client.get(reverse("learning_logs:new_entry", args=[self.topic.id]))
+        body = response.content.decode()
+        self.assertIn("<label", body)
+        self.assertIn("csrfmiddlewaretoken", body)
