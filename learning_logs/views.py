@@ -56,7 +56,22 @@ app_name = "learning_logs"
 # Create your views here.
 def index(request):
     #学习笔记的主页
-    return render(request,'learning_logs/index.html')
+    context = {}
+    if request.user.is_authenticated:
+        user = request.user
+        today = timezone.localdate()
+        context = {
+            "snapshot": {
+                "topics": Topic.objects.filter(owner=user).count(),
+                "entries": Entry.objects.filter(topic__owner=user).count(),
+                "streak": stats.current_streak(user),
+                "due_cards": Flashcard.objects.filter(user=user, due_date__lte=today).count(),
+                "week_minutes": stats.range_minutes(user, 7),
+                "cards": Flashcard.objects.filter(user=user).count(),
+            },
+            "recent_topics": Topic.objects.filter(owner=user).order_by("-date_added")[:4],
+        }
+    return render(request,'learning_logs/index.html', context)
 
 @login_required
 def topics(request):

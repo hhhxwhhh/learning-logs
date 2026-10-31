@@ -102,8 +102,47 @@
       </div>
     </div>
 
+    {% if entries %}
+    <div class="card">
+      <div class="card__body stack-sm">
+        <div class="cluster">
+          <label class="field" style="flex: 1; min-width: 180px">
+            <span class="sr-only">在本主题内搜索</span>
+            <input
+              class="input"
+              type="search"
+              placeholder="在本主题内搜索关键词…"
+              data-entry-filter
+              autocomplete="off"
+            />
+          </label>
+          <div class="cluster" role="group" aria-label="按状态筛选">
+            <button type="button" class="btn btn--sm btn--primary" data-entry-status="all">全部</button>
+            <button type="button" class="btn btn--sm btn--ghost" data-entry-status="open">进行中</button>
+            <button type="button" class="btn btn--sm btn--ghost" data-entry-status="done">已完成</button>
+          </div>
+        </div>
+        {% if topic_tags %}
+        <div class="chip-row" role="group" aria-label="按标签筛选">
+          <button type="button" class="chip is-active" data-entry-tag="">全部标签</button>
+          {% for tag in topic_tags %}
+          <button type="button" class="chip" data-entry-tag="{{ tag.name }}">{{ tag.name }}</button>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <span class="tiny muted" data-entry-count></span>
+      </div>
+    </div>
+    {% endif %}
+
     {% for entry in entries %}
-    <article class="card">
+    <article
+      class="card"
+      data-entry-item
+      data-status="{% if entry.completed %}done{% else %}open{% endif %}"
+      data-tags="{% for tag in entry.tag_list %}{{ tag.name }} {% endfor %}"
+      data-text="{{ entry.text|md_plain|truncatechars:400 }}"
+    >
       <div class="card__head">
         <div class="cluster small">
           <span class="badge {% if entry.completed %}badge--teal{% else %}badge--outline{% endif %}">
@@ -223,4 +262,61 @@
     </div>
   </aside>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var search = document.querySelector("[data-entry-filter]");
+    var items = Array.prototype.slice.call(document.querySelectorAll("[data-entry-item]"));
+    if (!items.length) return;
+
+    var status = "all";
+    var tag = "";
+    var counter = document.querySelector("[data-entry-count]");
+
+    function apply() {
+      var keyword = search ? search.value.trim().toLowerCase() : "";
+      var visible = 0;
+      items.forEach(function (item) {
+        var matched =
+          (status === "all" || item.dataset.status === status) &&
+          (!tag || (item.dataset.tags || "").indexOf(tag) >= 0) &&
+          (!keyword || (item.dataset.text || "").toLowerCase().indexOf(keyword) >= 0);
+        item.hidden = !matched;
+        if (matched) visible += 1;
+      });
+      if (counter) {
+        counter.textContent = visible
+          ? "筛选出 " + visible + " / " + items.length + " 条记录"
+          : "没有符合条件的记录";
+      }
+    }
+
+    if (search) search.addEventListener("input", apply);
+
+    document.querySelectorAll("[data-entry-status]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        status = button.getAttribute("data-entry-status");
+        document.querySelectorAll("[data-entry-status]").forEach(function (other) {
+          other.classList.toggle("btn--primary", other === button);
+          other.classList.toggle("btn--ghost", other !== button);
+        });
+        apply();
+      });
+    });
+
+    document.querySelectorAll("[data-entry-tag]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        tag = button.getAttribute("data-entry-tag");
+        document.querySelectorAll("[data-entry-tag]").forEach(function (other) {
+          other.classList.toggle("is-active", other === button);
+        });
+        apply();
+      });
+    });
+
+    apply();
+  })();
+</script>
 {% endblock %}

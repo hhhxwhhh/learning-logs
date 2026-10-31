@@ -992,3 +992,28 @@ class CardStatsTests(BaseTestCase):
     def test_daily_series_has_two_weeks(self):
         response = self.client.get(reverse("learning_logs:card_stats"))
         self.assertEqual(len(response.context["daily"]), 14)
+
+
+class HomeSnapshotTests(BaseTestCase):
+    def test_home_shows_snapshot_for_logged_user(self):
+        response = self.client.get(reverse("learning_logs:index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "我的学习快照")
+        self.assertEqual(response.context["snapshot"]["topics"], 1)
+        self.assertEqual(response.context["snapshot"]["entries"], 1)
+
+    def test_home_is_public_for_anonymous(self):
+        client = Client()
+        response = client.get(reverse("learning_logs:index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "我的学习快照")
+
+
+class TopicFilterTests(BaseTestCase):
+    def test_topic_page_has_filter_toolbar(self):
+        tags.sync_tags(self.alice, self.topic, "筛选测试")
+        response = self.client.get(reverse("learning_logs:topic", args=[self.topic.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-entry-filter")
+        self.assertContains(response, "data-entry-item")
+        self.assertContains(response, "筛选测试")

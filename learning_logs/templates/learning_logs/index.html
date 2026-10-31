@@ -1,5 +1,5 @@
 {% extends "learning_logs/base.html" %}
-{% load static %}
+{% load static ll_extras %}
 
 {% block title %}知迹 · 让学习留下痕迹{% endblock %}
 
@@ -112,6 +112,63 @@
     </article>
   </div>
 </section>
+
+{% if user.is_authenticated %}
+<section class="mt-4">
+  <div class="page-head">
+    <div>
+      <div class="page-head__eyebrow">Snapshot</div>
+      <h2>我的学习快照</h2>
+      <p>接着上次的进度继续，不用先翻一遍全站。</p>
+    </div>
+    <div class="cluster">
+      <a class="btn btn--ghost" href="{% url 'learning_logs:today' %}">今日速览</a>
+      <a class="btn" href="{% url 'learning_logs:new_entry' recent_topics.0.id %}">写一条记录</a>
+    </div>
+  </div>
+
+  <div class="grid metrics">
+    <div class="metric">
+      <span class="metric__label">主题 / 笔记</span>
+      <span class="metric__value">{{ snapshot.topics }}<small>个</small></span>
+      <span class="metric__hint">{{ snapshot.entries }} 条笔记</span>
+    </div>
+    <div class="metric">
+      <span class="metric__label">连续学习</span>
+      <span class="metric__value">{{ snapshot.streak }}<small>天</small></span>
+      <span class="metric__hint">近 7 天 {{ snapshot.week_minutes|dur }}</span>
+    </div>
+    <div class="metric">
+      <span class="metric__label">待复习闪卡</span>
+      <span class="metric__value">{{ snapshot.due_cards }}<small>张</small></span>
+      <span class="metric__hint">共 {{ snapshot.cards }} 张卡片</span>
+    </div>
+  </div>
+
+  {% if recent_topics %}
+  <div class="grid mt-3">
+    {% for item in recent_topics %}
+    <a class="tile" href="{% url 'learning_logs:topic' item.id %}">
+      <span class="tile__title">{{ item.text }}</span>
+      <span class="tiny muted">{{ item.total_items }} 条记录 · 完成 {{ item.progress_percentage }}%</span>
+      <span class="progress mt-1">
+        <span class="progress__bar" style="width: {{ item.progress_percentage }}%"></span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card mt-3">
+    <div class="empty">
+      <div class="empty__icon"><svg width="24" height="24"><use href="#i-sprout" /></svg></div>
+      <h3>还没有主题</h3>
+      <p>先建一个你正在学的方向，之后每一条笔记都会挂在它下面。</p>
+      <a class="btn btn--primary mt-2" href="{% url 'learning_logs:new_topic' %}">新建主题</a>
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
 
 <section class="mt-4">
   <div class="panel panel--accent">
