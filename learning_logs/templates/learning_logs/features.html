@@ -1,0 +1,91 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}功能地图 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Features</div>
+    <h1>功能地图</h1>
+    <p>知迹已经长出 {{ total }} 个能力。这里是一张完整的地图，也是快捷键速查表。</p>
+  </div>
+  <div class="cluster">
+    <label class="field" style="min-width: 220px">
+      <span class="sr-only">筛选功能</span>
+      <input
+        class="input"
+        type="search"
+        placeholder="筛选功能，例如「复习」"
+        data-feature-filter
+        autocomplete="off"
+      />
+    </label>
+  </div>
+</div>
+
+<section class="card mb-3">
+  <div class="card__head">
+    <h3>键盘快捷键</h3>
+    <span class="tiny muted">按 ? 随时打开本页</span>
+  </div>
+  <div class="card__body">
+    <div class="quick-grid">
+      <div class="chip"><kbd>⌘K</kbd> 全局搜索</div>
+      <div class="chip"><kbd>G</kbd> 然后 <kbd>T</kbd> 主题</div>
+      <div class="chip"><kbd>G</kbd> 然后 <kbd>D</kbd> 仪表盘</div>
+      <div class="chip"><kbd>G</kbd> 然后 <kbd>R</kbd> 今日复习</div>
+      <div class="chip"><kbd>G</kbd> 然后 <kbd>F</kbd> 专注计时</div>
+      <div class="chip"><kbd>G</kbd> 然后 <kbd>M</kbd> 功能地图</div>
+      <div class="chip"><kbd>?</kbd> 打开本页</div>
+      <div class="chip"><kbd>Esc</kbd> 关闭弹层</div>
+    </div>
+  </div>
+</section>
+
+{% for group in groups %}
+<section class="card mb-3" data-feature-group>
+  <div class="card__head">
+    <h3>{{ group.title }}</h3>
+    <span class="tiny muted">{{ group.desc }}</span>
+  </div>
+  <div class="card__body">
+    <div class="grid">
+      {% for item in group.items %}
+      <a class="tile" href="{{ item.url }}" data-feature-item data-name="{{ item.name }}" data-desc="{{ item.desc }}">
+        <span class="cluster">
+          <svg width="16" height="16"><use href="#{{ item.icon }}" /></svg>
+          <span class="tile__title">{{ item.name }}</span>
+          {% if item.key %}<kbd>G {{ item.key|upper }}</kbd>{% endif %}
+        </span>
+        <span class="tiny muted">{{ item.desc }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var input = document.querySelector("[data-feature-filter]");
+    if (!input) return;
+    var items = Array.prototype.slice.call(document.querySelectorAll("[data-feature-item]"));
+    var groups = Array.prototype.slice.call(document.querySelectorAll("[data-feature-group]"));
+
+    input.addEventListener("input", function () {
+      var keyword = input.value.trim().toLowerCase();
+      items.forEach(function (item) {
+        var haystack = (item.dataset.name + " " + item.dataset.desc).toLowerCase();
+        var matched = !keyword || haystack.indexOf(keyword) >= 0;
+        item.hidden = !matched;
+      });
+      groups.forEach(function (group) {
+        var visible = group.querySelectorAll("[data-feature-item]:not([hidden])");
+        group.hidden = visible.length === 0;
+      });
+    });
+  })();
+</script>
+{% endblock %}

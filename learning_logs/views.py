@@ -563,6 +563,72 @@ def generate_cards(request, topic_id):
     return redirect("learning_logs:flashcards")
 
 
+FEATURE_GROUPS = [
+    {
+        "title": "记录与组织",
+        "desc": "把每天学到的东西放进来，并让它们彼此产生联系",
+        "items": [
+            {"name": "主题", "url": "/topics/", "icon": "i-layers", "key": "t",
+             "desc": "按主题拆分知识，一个主题一棵树"},
+            {"name": "新建主题", "url": "/new_topic/", "icon": "i-plus", "key": "n",
+             "desc": "开一个新的学习方向，配好标签"},
+            {"name": "学习路径", "url": "/learning-paths/", "icon": "i-route", "key": "p",
+             "desc": "把多个主题串成一条有顺序的路线"},
+            {"name": "标签", "url": "/tags/", "icon": "i-tag", "key": "",
+             "desc": "横向索引，跨主题复用同一套关键词"},
+        ],
+    },
+    {
+        "title": "复习与记忆",
+        "desc": "用间隔重复把短期记忆变成长期记忆",
+        "items": [
+            {"name": "闪卡", "url": "/flashcards/", "icon": "i-cards", "key": "c",
+             "desc": "管理所有卡片，支持 AI 批量生成"},
+            {"name": "今日复习", "url": "/flashcards/review/", "icon": "i-brain", "key": "r",
+             "desc": "SM-2 算法挑出今天该复习的卡"},
+            {"name": "专注计时", "url": "/focus/", "icon": "i-timer", "key": "f",
+             "desc": "番茄钟，结束即计入学习时长"},
+            {"name": "AI 助教", "url": "/topics/", "icon": "i-spark", "key": "",
+             "desc": "在主题页里与 AI 多轮对话"},
+        ],
+    },
+    {
+        "title": "洞察与回顾",
+        "desc": "看见自己的学习曲线，而不只是记流水账",
+        "items": [
+            {"name": "今日速览", "url": "/today/", "icon": "i-clock", "key": "o",
+             "desc": "今日待办、连续天数与记忆闪回"},
+            {"name": "仪表盘", "url": "/dashboard/", "icon": "i-chart", "key": "d",
+             "desc": "热力图、时长分布与主题排行"},
+            {"name": "学习分析", "url": "/analytics/", "icon": "i-chart", "key": "a",
+             "desc": "更细的统计分析视角"},
+            {"name": "知识图谱", "url": "/graph/", "icon": "i-graph", "key": "g",
+             "desc": "主题之间的关联网络"},
+            {"name": "学习花园", "url": "/garden/", "icon": "i-sprout", "key": "e",
+             "desc": "把学习量长成一棵可视化的树"},
+            {"name": "学习周报", "url": "/weekly/", "icon": "i-doc", "key": "w",
+             "desc": "AI 参与的一周复盘与建议"},
+            {"name": "学习成就", "url": "/achievements/", "icon": "i-target", "key": "b",
+             "desc": "徽章体系，记录坚持的痕迹"},
+        ],
+    },
+    {
+        "title": "工具与设置",
+        "desc": "数据属于你，随时可以带走",
+        "items": [
+            {"name": "学习目标", "url": "/goals/", "icon": "i-flag", "key": "",
+             "desc": "给学习设一个截止日期"},
+            {"name": "数据与备份", "url": "/data/", "icon": "i-doc", "key": "x",
+             "desc": "Markdown / Anki / JSON 导出与导入"},
+            {"name": "功能地图", "url": "/features/", "icon": "i-book", "key": "m",
+             "desc": "本站全部能力与快捷键一览"},
+            {"name": "个人中心", "url": "/accounts/profile/", "icon": "i-user", "key": "u",
+             "desc": "账号与偏好设置"},
+        ],
+    },
+]
+
+
 QUICK_ACTIONS = [
     {"label": "新建主题", "url": "/new_topic/", "keywords": ["新建", "主题", "create", "topic"]},
     {"label": "写一条笔记", "url": "/topics/", "keywords": ["笔记", "记录", "entry", "new"]},
@@ -575,6 +641,7 @@ QUICK_ACTIONS = [
     {"label": "知识图谱", "url": "/graph/", "keywords": ["图谱", "graph", "关联", "网络"]},
     {"label": "标签管理", "url": "/tags/", "keywords": ["标签", "tag", "分类"]},
     {"label": "专注计时", "url": "/focus/", "keywords": ["专注", "番茄", "focus", "计时"]},
+    {"label": "功能地图", "url": "/features/", "keywords": ["功能", "地图", "快捷键", "features"]},
 ]
 
 
@@ -809,6 +876,17 @@ def tag_detail(request, tag_id):
 def graph(request):
     """知识图谱：主题之间的关联网络。"""
     return render(request, "learning_logs/graph.html", graph_service.build(request.user))
+
+
+@login_required
+def features(request):
+    """功能地图：把全站能力和快捷键汇总到一页。"""
+    total = sum(len(group["items"]) for group in FEATURE_GROUPS)
+    return render(
+        request,
+        "learning_logs/features.html",
+        {"groups": FEATURE_GROUPS, "total": total},
+    )
 
 
 @login_required

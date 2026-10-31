@@ -2563,6 +2563,103 @@
     stroke: var(--teal);
   }
 
+  /* Markdown 编辑器 ---------------------------------------------------- */
+  .md-editor {
+    border: 1px solid var(--line);
+    border-radius: calc(var(--radius) - 4px);
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+
+  .md-editor__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    flex-wrap: wrap;
+  }
+
+  .md-editor__label {
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .md-editor__body {
+    display: grid;
+    gap: 0;
+  }
+
+  .md-editor__body .field {
+    padding: 0.75rem;
+    gap: 0.4rem;
+  }
+
+  .md-editor .textarea {
+    border-radius: 8px;
+    min-height: 180px;
+  }
+
+  .md-preview {
+    padding: 0.9rem 1rem;
+    border-top: 1px dashed var(--line-strong);
+    background: var(--surface);
+    max-height: 320px;
+    overflow: auto;
+    font-size: 0.92rem;
+  }
+
+  .md-preview .md-code {
+    background: var(--bg-soft);
+    padding: 0.7rem 0.8rem;
+    border-radius: 8px;
+    overflow: auto;
+    font-size: 0.82rem;
+  }
+
+  .md-preview blockquote {
+    margin: 0.6rem 0;
+    padding-left: 0.8rem;
+    border-left: 3px solid var(--accent);
+    color: var(--muted);
+  }
+
+  .md-preview .md-tasks {
+    list-style: none;
+    padding: 0;
+  }
+
+  .md-preview .md-task {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  @media (min-width: 900px) {
+    .md-editor__body--split {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.1rem 0.4rem;
+    min-width: 1.4rem;
+    justify-content: center;
+    border: 1px solid var(--line-strong);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: var(--surface);
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }
+
 /* --------------------------------------------------------------------------
    工具类
    -------------------------------------------------------------------------- */
@@ -2637,5 +2734,46 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   打印：导出纸质版笔记
+   -------------------------------------------------------------------------- */
+@media print {
+  .header,
+  .footer,
+  .palette,
+  .toast-stack,
+  .mobile-nav,
+  .nav-toggle,
+  .form-actions,
+  .md-editor__bar {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  .page {
+    padding: 0;
+  }
+
+  .card,
+  .tile,
+  .panel {
+    box-shadow: none;
+    border-color: #cccccc;
+    break-inside: avoid;
+  }
+
+  a[href]::after {
+    content: "";
+  }
+
+  .prose {
+    font-size: 11pt;
+    line-height: 1.65;
   }
 }

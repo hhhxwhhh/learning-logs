@@ -1,0 +1,30 @@
+{% load static %}
+<div class="md-editor" data-md-editor>
+  <div class="md-editor__bar">
+    <span class="tiny muted md-editor__label">{{ label|default:"内容" }}</span>
+    <div class="cluster">
+      <button type="button" class="btn btn--sm btn--ghost" data-md-action="bold" title="加粗">B</button>
+      <button type="button" class="btn btn--sm btn--ghost" data-md-action="heading" title="标题">H2</button>
+      <button type="button" class="btn btn--sm btn--ghost" data-md-action="list" title="列表">
+        <svg width="14" height="14"><use href="#i-layers" /></svg>
+      </button>
+      <button type="button" class="btn btn--sm btn--ghost" data-md-action="task" title="待办">
+        <svg width="14" height="14"><use href="#i-check" /></svg>
+      </button>
+      <button type="button" class="btn btn--sm btn--ghost" data-md-action="code" title="行内代码">&lt;/&gt;</button>
+      <button type="button" class="btn btn--sm btn--ghost" data-md-action="quote" title="引用">“”</button>
+      <button type="button" class="btn btn--sm btn--ghost" data-md-toggle title="预览">预览</button>
+    </div>
+  </div>
+
+  <div class="md-editor__body">
+    <div class="field">
+      <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<span class="hint">{{ field.help_text }}</span>{% endif %}
+      {{ field.errors }}
+    </div>
+    <div class="md-preview prose" data-md-preview hidden></div>
+  </div>
+</div>
+<script src="{% static 'js/editor.js' %}?v=1" defer></script>

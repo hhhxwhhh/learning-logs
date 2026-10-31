@@ -683,3 +683,32 @@ class FocusTests(BaseTestCase):
             reverse("learning_logs:focus_log"), {"minutes": "10", "topic": bob_topic.id}
         )
         self.assertEqual(response.status_code, 400)
+
+
+class FeatureMapTests(BaseTestCase):
+    def test_features_page_lists_capabilities(self):
+        response = self.client.get(reverse("learning_logs:features"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "功能地图")
+        self.assertContains(response, "知识图谱")
+        self.assertGreaterEqual(response.context["total"], 15)
+
+    def test_feature_urls_are_reachable(self):
+        response = self.client.get(reverse("learning_logs:features"))
+        urls = [
+            item["url"]
+            for group in response.context["groups"]
+            for item in group["items"]
+        ]
+        self.assertTrue(urls)
+        for url in urls:
+            page = self.client.get(url)
+            self.assertIn(page.status_code, (200, 302), url)
+
+
+class MarkdownEditorTests(BaseTestCase):
+    def test_entry_form_has_editor(self):
+        response = self.client.get(reverse("learning_logs:new_entry", args=[self.topic.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-md-editor")
+        self.assertContains(response, "editor.js")

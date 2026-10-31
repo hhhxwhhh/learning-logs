@@ -422,3 +422,75 @@
     window.LL.toast("已安装到桌面", "success");
   });
 })();
+
+/* ------------------------------------------------------- 键盘快捷键导航 */
+(function () {
+  "use strict";
+
+  var ROUTES = {
+    t: "/topics/",
+    n: "/new_topic/",
+    p: "/learning-paths/",
+    c: "/flashcards/",
+    r: "/flashcards/review/",
+    f: "/focus/",
+    o: "/today/",
+    d: "/dashboard/",
+    a: "/analytics/",
+    g: "/graph/",
+    e: "/garden/",
+    w: "/weekly/",
+    b: "/achievements/",
+    x: "/data/",
+    m: "/features/",
+    u: "/accounts/profile/",
+    s: "/tags/",
+  };
+
+  var pending = false;
+  var pendingTimer = null;
+
+  function isTyping(target) {
+    if (!target) return false;
+    var tag = target.tagName;
+    return (
+      tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable
+    );
+  }
+
+  function go(url) {
+    window.location.href = url;
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (isTyping(event.target)) return;
+    if (document.querySelector(".palette:not([hidden])")) return;
+
+    var key = event.key;
+
+    if (key === "?") {
+      event.preventDefault();
+      go("/features/");
+      return;
+    }
+
+    if (pending) {
+      var target = ROUTES[key.toLowerCase()];
+      pending = false;
+      clearTimeout(pendingTimer);
+      if (target) {
+        event.preventDefault();
+        go(target);
+      }
+      return;
+    }
+
+    if (key.toLowerCase() === "g") {
+      pending = true;
+      pendingTimer = setTimeout(function () {
+        pending = false;
+      }, 1200);
+    }
+  });
+})();
