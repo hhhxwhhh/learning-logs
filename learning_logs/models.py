@@ -486,3 +486,35 @@ class TaggedItem(models.Model):
 
     def __str__(self):
         return f"{self.tag} → {self.content_type}#{self.object_id}"
+
+
+class EntryRevision(models.Model):
+    """笔记的历史版本：每次编辑前把旧文本留一份，支持回滚。"""
+
+    entry = models.ForeignKey(Entry, on_delete=models.CASCADE, related_name="revisions")
+    text = models.TextField("历史内容")
+    edited_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="修改者"
+    )
+    created_at = models.DateTimeField("保存时间", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "笔记历史版本"
+        verbose_name_plural = "笔记历史版本"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"版本 · {self.entry_id} · {self.created_at:%Y-%m-%d %H:%M}"
+
+    @property
+    def summary(self) -> str:
+        plain = self.text.replace("\n", " ").strip()
+        return plain[:60] + ("…" if len(plain) > 60 else "")
+
+
+def snapshot_entry(entry: Entry, editor=None) -> EntryRevision | None:
+    """在保存修改前记录当前内容；内容没变就不留痕。"""
+    original = Entry.objects.filter(id=entry.id).values_list("text", flat=True).first()
+    if original is None or original == entry.text:
+        return None
+    return EntryRevision.objects.create(entry=entry, text=original, edited_by=editor)

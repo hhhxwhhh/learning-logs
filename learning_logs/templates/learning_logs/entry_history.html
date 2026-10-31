@@ -1,0 +1,94 @@
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
+
+{% block title %}历史版本 · {{ topic.text }}{% endblock %}
+
+{% block content %}
+<nav class="cluster small muted mb-2">
+  <a href="{% url 'learning_logs:topic' topic.id %}">{{ topic.text }}</a>
+  <span>/</span>
+  <span>历史版本</span>
+</nav>
+
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">History</div>
+    <h1>这条笔记的修改记录</h1>
+    <p>每次保存前的旧内容都会留一份，随时可以回滚。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:edit_entry' entry.id %}">继续编辑</a>
+    <a class="btn" href="{% url 'learning_logs:topic' topic.id %}">返回主题</a>
+  </div>
+</div>
+
+<div class="split">
+  <section class="card">
+    <div class="card__head">
+      <h3>历史版本</h3>
+      <span class="tiny muted">{{ revisions|length }} 个快照</span>
+    </div>
+    <div class="card__body">
+      {% if revisions %}
+      <div class="list">
+        {% for revision in revisions %}
+        <div class="list__item">
+          <div class="list__main">
+            <span class="list__title">{{ revision.summary|default:"（空白内容）" }}</span>
+            <span class="list__meta">
+              <span>{{ revision.created_at|date:"Y-m-d H:i" }}</span>
+              {% if revision.edited_by %}<span>由 {{ revision.edited_by.username }} 修改</span>{% endif %}
+            </span>
+          </div>
+          <div class="cluster">
+            <a
+              class="btn btn--sm btn--ghost"
+              href="?preview={{ revision.id }}"
+            >
+              <svg width="14" height="14"><use href="#i-doc" /></svg>预览
+            </a>
+            <form method="post" action="{% url 'learning_logs:restore_entry' revision.id %}">
+              {% csrf_token %}
+              <button class="btn btn--sm" type="submit" data-confirm="回滚会覆盖当前内容（当前内容会先存为历史版本），确定吗？">
+                <svg width="14" height="14"><use href="#i-refresh" /></svg>回滚
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">
+        <div class="empty__icon"><svg width="24" height="24"><use href="#i-clock" /></svg></div>
+        <h3>还没有修改记录</h3>
+        <p>编辑这条笔记后，旧内容会自动保存在这里。</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <aside class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>{% if preview %}历史内容{% else %}当前内容{% endif %}</h3>
+        {% if preview %}<span class="tiny muted">{{ preview.created_at|date:"m-d H:i" }}</span>{% endif %}
+      </div>
+      <div class="card__body">
+        <div class="prose">
+          {% if preview %}
+          {{ preview.text|markdown }}
+          {% else %}
+          {{ entry.text|markdown }}
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    {% if preview %}
+    <a class="btn btn--ghost" href="{% url 'learning_logs:entry_history' entry.id %}">
+      <svg width="16" height="16"><use href="#i-close" /></svg>退出预览
+    </a>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

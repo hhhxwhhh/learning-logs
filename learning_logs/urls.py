@@ -37,6 +37,8 @@ urlpatterns = [
     # 条目
     path("new_entry/<int:topic_id>", views.new_entry, name="new_entry"),
     path("edit_entry/<int:entry_id>", views.edit_entry, name="edit_entry"),
+    path("entry/<int:entry_id>/history/", views.entry_history, name="entry_history"),
+    path("revisions/<int:revision_id>/restore/", views.restore_entry, name="restore_entry"),
     path("delete_entry/<int:entry_id>", views.delete_entry, name="delete_entry"),
     path("entry/<int:entry_id>/comments/", views.entry_comments, name="entry_comments"),
     # 搜索

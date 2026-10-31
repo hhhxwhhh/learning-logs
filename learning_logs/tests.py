@@ -19,6 +19,7 @@ from .models import (
     StudySession,
     Tag,
     Topic,
+    snapshot_entry,
 )
 from .services import (
     achievements,
@@ -1377,4 +1378,77 @@ class PublicProfileTests(BaseTestCase):
     def test_unknown_user_is_404(self):
         anonymous = Client()
         response = anonymous.get(reverse("learning_logs:public_profile", args=["nobody"]))
+        self.assertEqual(response.status_code, 404)
+
+
+class EntryRevisionTests(BaseTestCase):
+    """笔记版本历史：留痕、预览与回滚。"""
+
+    def test_edit_creates_revision(self):
+        self.client.post(
+            reverse("learning_logs:edit_entry", args=[self.entry.id]),
+            {"text": "修改后的内容", "tags": ""},
+        )
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.text, "修改后的内容")
+        self.assertEqual(self.entry.revisions.count(), 1)
+        self.assertEqual(self.entry.revisions.first().text, "QuerySet 是惰性的")
+
+    def test_no_revision_when_text_unchanged(self):
+        self.client.post(
+            reverse("learning_logs:edit_entry", args=[self.entry.id]),
+            {"text": "QuerySet 是惰性的", "tags": ""},
+        )
+        self.assertEqual(self.entry.revisions.count(), 0)
+
+    def test_history_page_and_preview(self):
+        self.client.post(
+            reverse("learning_logs:edit_entry", args=[self.entry.id]),
+            {"text": "第二版内容", "tags": ""},
+        )
+        revision = self.entry.revisions.first()
+        response = self.client.get(reverse("learning_logs:entry_history", args=[self.entry.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "历史版本")
+
+        response = self.client.get(
+            reverse("learning_logs:entry_history", args=[self.entry.id]),
+            {"preview": revision.id},
+        )
+        self.assertEqual(response.context["preview"].text, "QuerySet 是惰性的")
+
+    def test_restore_rolls_back(self):
+        self.client.post(
+            reverse("learning_logs:edit_entry", args=[self.entry.id]),
+            {"text": "被改坏的内容", "tags": ""},
+        )
+        revision = self.entry.revisions.first()
+
+        response = self.client.post(
+            reverse("learning_logs:restore_entry", args=[revision.id])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.text, "QuerySet 是惰性的")
+        # 回滚前的「被改坏的内容」也应留痕
+        self.assertEqual(self.entry.revisions.count(), 2)
+
+    def test_cannot_restore_others_revision(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        bob_entry = Entry.objects.create(topic=bob_topic, text="Bob 的笔记")
+        bob_entry.text = "Bob 改过的内容"
+        snapshot_entry(bob_entry, self.bob)
+        bob_entry.save()
+
+        response = self.client.post(
+            reverse("learning_logs:restore_entry", args=[bob_entry.revisions.first().id])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_history_page_requires_ownership(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        bob_entry = Entry.objects.create(topic=bob_topic, text="Bob 的笔记")
+        response = self.client.get(
+            reverse("learning_logs:entry_history", args=[bob_entry.id])
+        )
         self.assertEqual(response.status_code, 404)

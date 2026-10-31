@@ -27,6 +27,7 @@ from .forms import (
 from .models import (
     ApiToken,
     Comment,
+    EntryRevision,
     Entry,
     Flashcard,
     LearningGoal,
@@ -35,6 +36,7 @@ from .models import (
     PathStep,
     StepResource,
     StudySession,
+    snapshot_entry,
     Tag,
     TaggedItem,
     Topic,
@@ -182,6 +184,7 @@ def edit_entry(request,entry_id):
         form=EntryForm(instance=entry,data=request.POST)
         tags_input = request.POST.get('tags','')
         if form.is_valid():
+            snapshot_entry(entry, request.user)
             form.save()
             tags_service.sync_tags(request.user, entry, tags_input)
             return redirect('learning_logs:topic',topic_id=topic.id)
@@ -652,6 +655,10 @@ FEATURE_GROUPS = [
              "desc": "开一个新的学习方向，配好标签"},
             {"name": "双链笔记", "url": "/features/", "icon": "i-layers", "key": "",
              "desc": "在笔记里写 [[主题名]] 即可互链，对方显示反向链接"},
+            {"name": "版本历史", "url": "/features/", "icon": "i-clock", "key": "",
+             "desc": "每次修改自动留痕，编辑页可预览与回滚旧版本"},
+            {"name": "公开主页", "url": "/features/", "icon": "i-user", "key": "",
+             "desc": "把开启分享的主题聚合到一个只读主页"},
             {"name": "学习路径", "url": "/learning-paths/", "icon": "i-route", "key": "p",
              "desc": "把多个主题串成一条有顺序的路线"},
             {"name": "标签", "url": "/tags/", "icon": "i-tag", "key": "",
@@ -1357,3 +1364,38 @@ def public_profile(request, username):
             "entry_count": Entry.objects.filter(topic__in=shared_topics).count(),
         },
     )
+
+
+@login_required
+def entry_history(request, entry_id):
+    """笔记的历史版本列表，可预览某个旧版本。"""
+    entry = get_object_or_404(Entry, id=entry_id, topic__owner=request.user)
+    revisions = entry.revisions.select_related("edited_by")[:30]
+    preview = None
+    preview_id = request.GET.get("preview")
+    if str(preview_id or "").isdigit():
+        preview = EntryRevision.objects.filter(
+            id=int(preview_id), entry=entry
+        ).first()
+    return render(
+        request,
+        "learning_logs/entry_history.html",
+        {"entry": entry, "topic": entry.topic, "revisions": revisions, "preview": preview},
+    )
+
+
+@login_required
+@require_POST
+def restore_entry(request, revision_id):
+    """把笔记回滚到某个历史版本（回滚前同样留一份当前内容）。"""
+    revision = get_object_or_404(
+        EntryRevision, id=revision_id, entry__topic__owner=request.user
+    )
+    entry = revision.entry
+    current = Entry.objects.filter(id=entry.id).values_list("text", flat=True).first()
+    if current and current != revision.text:
+        EntryRevision.objects.create(entry=entry, text=current, edited_by=request.user)
+    entry.text = revision.text
+    entry.save()
+    messages.success(request, "已回滚到该历史版本，当前内容也保留了一份。")
+    return redirect("learning_logs:entry_history", entry_id=entry.id)
