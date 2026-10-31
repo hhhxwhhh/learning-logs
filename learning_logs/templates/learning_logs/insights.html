@@ -1,0 +1,97 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}学习洞察 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Insights</div>
+    <h1>学习洞察</h1>
+    <p>全部由你自己的数据推导：什么时候效率最高、投入是否失衡、下一步该做什么。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:dashboard' %}">仪表盘</a>
+    <a class="btn" href="{% url 'learning_logs:focus' %}">
+      <svg width="16" height="16"><use href="#i-timer" /></svg>开始专注
+    </a>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  {% for card in cards %}
+  <div class="metric">
+    <span class="metric__label">{{ card.title }}</span>
+    <span class="metric__value" style="font-size: 1.5rem">{{ card.value }}</span>
+    <span class="metric__hint">{{ card.hint }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="split">
+  <section class="card">
+    <div class="card__head">
+      <h3>下一步建议</h3>
+      <span class="tiny muted">按当前状态排序</span>
+    </div>
+    <div class="card__body">
+      <ol class="todo-list">
+        {% for item in suggestions %}
+        <li class="todo-item">
+          <span class="todo-item__dot is-active"></span>
+          <div class="todo-item__main">
+            <div class="todo-item__title">{{ item }}</div>
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+  </section>
+
+  <aside class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>搁置中的主题</h3>
+        <span class="tiny muted">{{ idle_topics|length }} 个</span>
+      </div>
+      <div class="card__body">
+        {% if idle_topics %}
+        <div class="chip-row">
+          {% for name in idle_topics %}
+          <span class="chip">{{ name }}</span>
+          {% endfor %}
+        </div>
+        <p class="tiny muted mt-2">两周以上没有新笔记，值得回去补一条或者归档。</p>
+        {% else %}
+        <p class="muted small">所有有记录的主题最近都动过，节奏不错。</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head"><h3>怎么算出来的</h3></div>
+      <div class="card__body">
+        <div class="list">
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">只用你自己的数据</span>
+              <span class="list__meta">计时记录、笔记时间、闪卡复习状态</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">纯规则推导，不联网</span>
+              <span class="list__meta">没有配置模型也能得到建议</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">数据越多越准</span>
+              <span class="list__meta">建议持续记录一两周再看</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

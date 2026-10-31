@@ -26,6 +26,7 @@ Django 服务端渲染，零前端框架依赖，可完全离线运行，也可�
 | Markdown 编辑器 | 零依赖工具条 + 实时预览，支持列表、待办、代码与引用 |
 | 功能地图 | 24 项能力分组汇总、关键词筛选，兼作快捷键速查表 |
 | 学习时间线 | 按月聚合笔记、卡片与时长，6/12/24 个月可切换 |
+| 学习洞察 | 规则引擎算出黄金时段、最活跃星期、投入集中度、复习健康度，并给出可执行建议 |
 | 双链笔记 | `[[主题名]]` 自动链接到主题，并在目标主题页显示反向链接 |
 | 置顶与归档 | 主题可置顶排序、归档后从默认列表隐藏，可一键恢复 |
 | 版本历史 | 笔记每次修改自动留痕，支持预览与一键回滚 |
@@ -116,6 +117,9 @@ learning_logs/         主题、笔记、路径、计时、闪卡、统计服务
   services/tags.py     标签解析、同步与标签云
   services/graph.py    知识图谱的关联边与力导向布局
   services/notifications.py  站内提醒的生成、幂等与裁剪
+  services/links.py      双链解析、渲染与反向链接
+  services/timeline.py   按月时间线聚合
+  services/insights.py   学习洞察规则引擎（黄金时段、集中度、复习健康度）
   services/api_access.py     开放 API 的鉴权与序列化
   api_views.py         /api/v1/ 只读与写入接口
   context_processors.py      把未读提醒带进所有页面
@@ -136,8 +140,8 @@ static/js/sw.js        Service Worker：静态缓存 + 页面回退
 python manage.py test
 ```
 
-159 个测试用例，覆盖模型进度计算、SM-2 间隔算法、越权访问、标签与图谱、通知幂等、
-开放 API 鉴权、导入去重、AI 流式接口与结构化输出解析（AI 调用全部使用假 Provider，不联网）。
+172 个测试用例，覆盖模型进度计算、SM-2 间隔算法、越权访问、标签与图谱、通知幂等、
+开放 API 鉴权、导入去重、时间线与洞察规则、AI 流式接口与结构化输出解析（AI 调用全部使用假 Provider，不联网）。
 
 ## 键盘快捷键
 
@@ -164,6 +168,10 @@ python manage.py test
 | `/weekly/` `/achievements/` | 学习周报与成就徽章 |
 | `/import/` `/data/` | 导入中心与导出备份 |
 | `/notifications/` | 提醒中心 |
+| `/timeline/` | 学习时间线（6/12/24 个月可切换） |
+| `/insights/` | 学习洞察与建议 |
+| `/entry/<id>/history/` | 笔记版本历史与回滚 |
+| `/u/<用户名>/` | 公开主页（聚合已分享主题） |
 | `/settings/api/` `/api/docs/` | API 令牌管理与接口文档 |
 | `/features/` | 功能地图与快捷键速查 |
 

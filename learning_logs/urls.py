@@ -96,6 +96,8 @@ urlpatterns = [
     path("features/", views.features, name="features"),
     # 学习时间线
     path("timeline/", views.timeline, name="timeline"),
+    # 学习洞察
+    path("insights/", views.insights, name="insights"),
     # 今日速览与专注计时
     path("today/", views.today, name="today"),
     path("focus/", views.focus, name="focus"),

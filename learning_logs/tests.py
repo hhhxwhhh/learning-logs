@@ -26,6 +26,7 @@ from .services import (
     export,
     garden,
     graph,
+    insights,
     links,
     notifications,
     report,
@@ -1452,3 +1453,53 @@ class EntryRevisionTests(BaseTestCase):
             reverse("learning_logs:entry_history", args=[bob_entry.id])
         )
         self.assertEqual(response.status_code, 404)
+
+
+class InsightsTests(BaseTestCase):
+    def test_insights_page(self):
+        response = self.client.get(reverse("learning_logs:insights"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "学习洞察")
+        self.assertTrue(response.context["suggestions"])
+
+    def test_insights_detects_best_hour(self):
+        # 洞察按本地时区聚合小时，这里也用本地时间构造，避免 UTC/Local 偏移
+        base = timezone.localtime(timezone.now()).replace(
+            hour=21, minute=0, second=0, microsecond=0
+        )
+        StudySession.objects.create(
+            user=self.alice,
+            topic=self.topic,
+            start_time=base,
+            end_time=base + timedelta(minutes=45),
+        )
+        data = insights.build(self.alice)
+        hour_card = next(card for card in data["cards"] if card["title"] == "黄金时段")
+        self.assertIn("21", hour_card["value"])
+
+    def test_insights_flags_idle_topics(self):
+        old_topic = Topic.objects.create(text="被搁置的主题", owner=self.alice)
+        Entry.objects.create(topic=old_topic, text="很久以前写的")
+        Entry.objects.filter(topic=old_topic).update(
+            date_added=timezone.now() - timedelta(days=40)
+        )
+        data = insights.build(self.alice)
+        self.assertIn("被搁置的主题", data["idle_topics"])
+
+    def test_insights_review_health(self):
+        Flashcard.objects.create(user=self.alice, topic=self.topic, front="Q", back="A")
+        data = insights.build(self.alice)
+        self.assertEqual(data["review"]["total"], 1)
+        self.assertEqual(data["review"]["due"], 1)
+
+    def test_insights_is_user_scoped(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        StudySession.objects.create(
+            user=self.bob,
+            topic=bob_topic,
+            start_time=timezone.now().replace(hour=6, minute=0, second=0, microsecond=0),
+            end_time=timezone.now().replace(hour=6, minute=30, second=0, microsecond=0),
+        )
+        data = insights.build(self.alice)
+        hour_card = next(card for card in data["cards"] if card["title"] == "黄金时段")
+        self.assertEqual(hour_card["value"], "暂无数据")

@@ -46,6 +46,7 @@ from .services import achievements as achievements_service
 from .services import export as export_service
 from .services import garden as garden_service
 from .services import graph as graph_service
+from .services import insights as insights_service
 from .services import links as links_service
 from .services import notifications as notifications_service
 from .services import report as report_service
@@ -693,6 +694,8 @@ FEATURE_GROUPS = [
              "desc": "热力图、时长分布与主题排行"},
             {"name": "学习分析", "url": "/analytics/", "icon": "i-chart", "key": "a",
              "desc": "更细的统计分析视角"},
+            {"name": "学习洞察", "url": "/insights/", "icon": "i-spark", "key": "j",
+             "desc": "规则引擎给出黄金时段、集中度与下一步建议"},
             {"name": "知识图谱", "url": "/graph/", "icon": "i-graph", "key": "g",
              "desc": "主题之间的关联网络"},
             {"name": "学习花园", "url": "/garden/", "icon": "i-sprout", "key": "e",
@@ -745,6 +748,7 @@ QUICK_ACTIONS = [
     {"label": "提醒中心", "url": "/notifications/", "keywords": ["提醒", "通知", "notification"]},
     {"label": "导入中心", "url": "/import/", "keywords": ["导入", "anki", "批量", "import"]},
     {"label": "学习时间线", "url": "/timeline/", "keywords": ["时间线", "timeline", "历史", "回顾"]},
+    {"label": "学习洞察", "url": "/insights/", "keywords": ["洞察", "insight", "建议", "效率"]},
 ]
 
 
@@ -1399,3 +1403,13 @@ def restore_entry(request, revision_id):
     entry.save()
     messages.success(request, "已回滚到该历史版本，当前内容也保留了一份。")
     return redirect("learning_logs:entry_history", entry_id=entry.id)
+
+
+@login_required
+def insights(request):
+    """学习洞察：把统计数据翻译成结论与下一步行动。"""
+    return render(
+        request,
+        "learning_logs/insights.html",
+        insights_service.build(request.user),
+    )
