@@ -24,7 +24,7 @@
   </div>
 </div>
 
-<div class="grid mb-3">
+<div class="grid metrics mb-3">
   <div class="metric">
     <span class="metric__label">笔记</span>
     <span class="metric__value">{{ entry_count }}<small>条</small></span>
@@ -73,7 +73,7 @@
       {% for entry in entries|slice:":8" %}
       <a class="list__item list__item--link" href="{% url 'learning_logs:entry_comments' entry.id %}">
         <div class="list__main">
-          <span class="list__title">{{ entry.text|striptags|truncatechars:50 }}</span>
+          <span class="list__title">{{ entry.text|md_plain|truncatechars:50 }}</span>
           <span class="list__meta">{{ entry.date_added|naturaltime }}</span>
         </div>
         {% if entry.completed %}<span class="badge badge--teal">已掌握</span>{% endif %}

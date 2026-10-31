@@ -42,3 +42,6 @@ htmlcov/
 *.swp
 *.swo
 .DS_Store
+
+# WorkBuddy 本地记忆与预览产物
+.workbuddy/

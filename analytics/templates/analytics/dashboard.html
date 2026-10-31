@@ -17,7 +17,7 @@
   </nav>
 </div>
 
-<div class="grid mb-3">
+<div class="grid metrics mb-3">
   <div class="metric">
     <span class="metric__label">累计投入</span>
     <span class="metric__value">{{ overview.total_minutes|dur }}</span>
@@ -45,19 +45,16 @@
     <section class="card">
       <div class="card__head">
         <h3>近 12 周投入</h3>
-        <span class="tiny muted">每天一格，悬停查看具体分钟数</span>
+        <span class="tiny muted">每周汇总，悬停查看具体分钟数</span>
       </div>
       <div class="card__body">
         <div class="bars">
-          {% for day in weekly %}
-          <div class="bars__item" title="{{ day.date|date:'m-d' }} · {{ day.minutes }} 分钟">
-            <div class="bars__bar" style="height: {{ day.pct }}%" {% if not day.minutes %}data-empty="true"{% endif %}></div>
+          {% for week in weekly %}
+          <div class="bars__item" title="{{ week.start|date:'n月j日' }} - {{ week.end|date:'n月j日' }} · {{ week.minutes }} 分钟">
+            <div class="bars__bar" style="height: {{ week.pct }}%" {% if not week.minutes %}data-empty="true"{% endif %}></div>
+            <span class="bars__label">{{ week.start|date:"n/j" }}</span>
           </div>
           {% endfor %}
-        </div>
-        <div class="between mt-1 tiny muted">
-          <span>{{ weekly.0.date|date:"n月j日" }}</span>
-          <span>今天</span>
         </div>
       </div>
     </section>

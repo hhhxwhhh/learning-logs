@@ -1,4 +1,6 @@
-"""模板过滤器：Markdown 渲染、时长格式化等。"""
+"""模板过滤器：Markdown 渲染、纯文本摘要、时长格式化等。"""
+
+import re
 
 from django import template
 from django.utils.safestring import mark_safe
@@ -34,6 +36,21 @@ def minutes_filter(value):
     if not value:
         return 0
     return int(value.total_seconds() // 60)
+
+
+@register.filter(name="md_plain")
+def md_plain_filter(value):
+    """去掉常见 Markdown 标记，用于列表摘要。"""
+    if not value:
+        return ""
+    text = re.sub(r"```.*?```", " ", str(value), flags=re.S)
+    text = re.sub(r"`([^`]*)`", r"\1", text)
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", text)
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"^\s{0,3}#{1,6}\s*", "", text, flags=re.M)
+    text = re.sub(r"[*_>#~]+", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 @register.filter(name="dur")

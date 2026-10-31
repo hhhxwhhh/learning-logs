@@ -116,6 +116,33 @@ def weekly_series(user, weeks: int = 8) -> list[dict]:
     return series
 
 
+def weekly_totals(user, weeks: int = 8) -> list[dict]:
+    """按周聚合学习分钟数，用于柱状图（每周一根柱子，避免空白天数干扰）。"""
+    weeks = max(1, weeks)
+    today = timezone.localdate()
+    end = today + timedelta(days=6 - today.weekday())
+    start = end - timedelta(days=weeks * 7 - 1)
+    totals = daily_minutes(user, days=(today - start).days + 1)
+
+    rows = []
+    cursor = start
+    for _ in range(weeks):
+        minutes = sum(totals.get(cursor + timedelta(days=i), 0) for i in range(7))
+        rows.append(
+            {
+                "start": cursor,
+                "end": cursor + timedelta(days=6),
+                "minutes": minutes,
+            }
+        )
+        cursor += timedelta(days=7)
+
+    peak = max([row["minutes"] for row in rows] + [1])
+    for row in rows:
+        row["pct"] = max(6, round(row["minutes"] / peak * 100)) if row["minutes"] else 6
+    return rows
+
+
 def hour_distribution(user) -> list[dict]:
     """一天 24 小时的学习时长分布（分钟）。"""
     buckets = defaultdict(int)

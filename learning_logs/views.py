@@ -181,10 +181,7 @@ def dashboard(request):
     """学习仪表盘：指标、热力图、趋势与待办。"""
     overview = stats.overview(request.user)
 
-    weekly = stats.weekly_series(request.user, weeks=8)
-    peak = max([day["minutes"] for day in weekly] + [1])
-    for day in weekly:
-        day["pct"] = max(4, round(day["minutes"] / peak * 100)) if day["minutes"] else 4
+    weekly = stats.weekly_totals(request.user, weeks=8)
 
     context = {
         "overview": overview,

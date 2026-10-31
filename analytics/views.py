@@ -89,10 +89,7 @@ def _insights(user, overview):
 def dashboard(request):
     """分析总览页。"""
     overview = stats.overview(request.user)
-    weekly = stats.weekly_series(request.user, weeks=12)
-    peak = max([day["minutes"] for day in weekly] + [1])
-    for day in weekly:
-        day["pct"] = max(4, round(day["minutes"] / peak * 100)) if day["minutes"] else 4
+    weekly = stats.weekly_totals(request.user, weeks=12)
 
     hourly = stats.hour_distribution(request.user)
     hour_peak = max([row["minutes"] for row in hourly] + [1])
@@ -116,10 +113,7 @@ def dashboard(request):
 def study_statistics(request):
     """学习时间统计。"""
     overview = stats.overview(request.user)
-    weekly = stats.weekly_series(request.user, weeks=12)
-    peak = max([day["minutes"] for day in weekly] + [1])
-    for day in weekly:
-        day["pct"] = max(4, round(day["minutes"] / peak * 100)) if day["minutes"] else 4
+    weekly = stats.weekly_totals(request.user, weeks=12)
 
     hourly = stats.hour_distribution(request.user)
     hour_peak = max([row["minutes"] for row in hourly] + [1])

@@ -18,7 +18,7 @@
   </div>
 </div>
 
-<div class="grid mb-3">
+<div class="grid metrics mb-3">
   <div class="metric">
     <span class="metric__label">本周投入</span>
     <span class="metric__value">{{ overview.week_minutes|dur }}</span>
@@ -96,19 +96,16 @@
       </div>
       <div class="card__body">
         <div class="bars">
-          {% for day in weekly %}
-          <div class="bars__item" title="{{ day.date|date:'m-d' }} · {{ day.minutes }} 分钟">
+          {% for week in weekly %}
+          <div class="bars__item" title="{{ week.start|date:'n月j日' }} - {{ week.end|date:'n月j日' }} · {{ week.minutes }} 分钟">
             <div
               class="bars__bar"
-              style="height: {{ day.pct }}%"
-              {% if not day.minutes %}data-empty="true"{% endif %}
+              style="height: {{ week.pct }}%"
+              {% if not week.minutes %}data-empty="true"{% endif %}
             ></div>
+            <span class="bars__label">{% if forloop.last %}本周{% else %}{{ week.start|date:"n/j" }}{% endif %}</span>
           </div>
           {% endfor %}
-        </div>
-        <div class="between mt-1 tiny muted">
-          <span>{{ weekly.0.date|date:"n月j日" }}</span>
-          <span>今天</span>
         </div>
       </div>
     </section>
@@ -150,7 +147,7 @@
         {% for entry in recent_entries %}
         <a class="list__item list__item--link" href="{% url 'learning_logs:entry_comments' entry.id %}">
           <div class="list__main">
-            <span class="list__title">{{ entry.text|striptags|truncatechars:42 }}</span>
+            <span class="list__title">{{ entry.text|md_plain|truncatechars:42 }}</span>
             <span class="list__meta">
               <span>{{ entry.topic.text }}</span>
               <span>{{ entry.date_added|naturaltime }}</span>
