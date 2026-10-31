@@ -17,8 +17,10 @@ from learning_logs.models import (
     LearningPath,
     PathStep,
     StepResource,
+    Tag,
     Topic,
 )
+from learning_logs.services import tags as tags_service
 from learning_logs.utils.markdown import render_markdown
 
 from . import prompts
@@ -226,3 +228,33 @@ def generate_flashcards(topic: Topic, count: int = 8, model: str | None = None) 
     if created == 0:
         raise AIError("没有生成新卡片（可能模型返回的内容与已有卡片重复）。")
     return created
+
+
+def suggest_tags(topic: Topic, count: int = 5, model: str | None = None) -> list[str]:
+    """让模型为主题建议标签，返回清洗后的标签名列表。"""
+    context = prompts.build_context(topic, limit=3000)
+    existing = [tag.name for tag in Tag.objects.filter(user=topic.owner)[:20]]
+
+    provider = get_provider()
+    raw = provider.complete(
+        [
+            Message(role="system", content=prompts.TAGGING_SYSTEM),
+            Message(role="user", content=prompts.tagging_prompt(context, existing)),
+        ],
+        model=resolve_model(model),
+    )
+    data = _extract_json(raw)
+
+    raw_tags = data.get("tags") or []
+    if not isinstance(raw_tags, list):
+        raise AIError("模型没有返回合法的标签列表。")
+
+    names: list[str] = []
+    for item in raw_tags[:count]:
+        name = tags_service.normalize(str(item))
+        if name and name not in names:
+            names.append(name)
+
+    if not names:
+        raise AIError("模型没有给出可用标签，可以手动打几个关键词。")
+    return names

@@ -1088,3 +1088,57 @@ class TopicsPageTests(BaseTestCase):
         response = self.client.get(reverse("learning_logs:topics"))
         self.assertContains(response, "Django ORM")
         self.assertNotContains(response, "Bob 的主题")
+
+
+class FakeTagProvider(FakeProvider):
+    def complete(self, messages, model=None, **kwargs):
+        return json.dumps({"tags": ["惰性求值", "查询优化", "惰性求值"]}, ensure_ascii=False)
+
+
+class FakeBrokenTagProvider(FakeProvider):
+    def complete(self, messages, model=None, **kwargs):
+        return "这不是 JSON"
+
+
+class AiTagTests(BaseTestCase):
+    """AI 建议标签：正常返回、异常兜底与越权。"""
+
+    @patch("learning_logs.ai.service.get_provider", return_value=FakeTagProvider())
+    def test_suggest_tags_merges_into_topic(self, _provider):
+        response = self.client.post(
+            reverse("learning_logs:suggest_tags", args=[self.topic.id])
+        )
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        # 建议里重复的「惰性求值」应被去重
+        self.assertEqual(
+            sorted(tag.name for tag in tags.tags_of(self.topic)),
+            sorted(["查询优化", "惰性求值"]),
+        )
+
+    @patch("learning_logs.ai.service.get_provider", return_value=FakeBrokenTagProvider())
+    def test_suggest_tags_handles_bad_response(self, _provider):
+        response = self.client.post(
+            reverse("learning_logs:suggest_tags", args=[self.topic.id])
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["ok"])
+
+    def test_suggest_tags_requires_own_topic(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        response = self.client.post(
+            reverse("learning_logs:suggest_tags", args=[bob_topic.id])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_topic_page_has_ai_tag_button(self):
+        response = self.client.get(reverse("learning_logs:topic", args=[self.topic.id]))
+        self.assertContains(response, "data-ai-tags")
+
+
+class NoteTemplateTests(BaseTestCase):
+    def test_new_entry_page_has_template_picker(self):
+        response = self.client.get(reverse("learning_logs:new_entry", args=[self.topic.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-template-picker")
+        self.assertContains(response, "templates_picker.js")

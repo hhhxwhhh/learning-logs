@@ -97,3 +97,19 @@ FLASHCARD_SYSTEM = (
 
 def flashcard_prompt(context: str, count: int = 8) -> str:
     return f"请基于以下笔记生成 {count} 张闪卡：\n\n{context}"
+
+
+TAGGING_SYSTEM = (
+    "你是知识管理助手。请为学习笔记提炼 3-5 个标签，"
+    "严格返回 JSON，不要包含代码块标记或解释文字。JSON 结构：\n"
+    '{"tags": ["标签1", "标签2", "标签3"]}\n'
+    "要求：每个标签 2-6 个字，具体且可复用（例如「索引优化」而不是「数据库」），"
+    "不要重复已有标签，不要输出序号或多余字段。"
+)
+
+
+def tagging_prompt(context: str, existing: list[str] | None = None) -> str:
+    base = "请为以下笔记提炼标签：\n\n" + context
+    if existing:
+        base += "\n\n已有标签（尽量不要重复）：" + "、".join(existing[:20])
+    return base

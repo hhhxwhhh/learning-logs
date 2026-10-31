@@ -1,4 +1,5 @@
 {% extends "learning_logs/base.html" %}
+{% load static %}
 
 {% block title %}写记录 · {{ topic.text }}{% endblock %}
 
@@ -53,8 +54,23 @@
     </div>
 
     <aside class="stack">
+      <div class="card">
+        <div class="card__head">
+          <h3>写作模板</h3>
+          <span class="tiny muted">点一下填入骨架</span>
+        </div>
+        <div class="card__body">
+          <div class="chip-row" data-template-picker>
+            <button type="button" class="chip" data-template="daily">今日复盘</button>
+            <button type="button" class="chip" data-template="concept">概念卡</button>
+            <button type="button" class="chip" data-template="bug">踩坑记录</button>
+            <button type="button" class="chip" data-template="plan">下一步计划</button>
+          </div>
+          <p class="tiny muted mt-2">模板只是骨架，写的时候可以随意删改。</p>
+        </div>
+      </div>
       <div class="panel small">
-        <strong class="strong" style="display:block; margin-bottom:0.4rem">写作模板</strong>
+        <strong class="strong" style="display:block; margin-bottom:0.4rem">模板预览</strong>
         <pre style="white-space: pre-wrap; font-size: 0.78rem; line-height: 1.7; margin: 0">## 今天学了什么
 - 关键概念：
 - 代码示例：
@@ -73,3 +89,8 @@
   </div>
 </form>
 {% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/templates_picker.js' %}?v=1" defer></script>
+{% endblock %}
+

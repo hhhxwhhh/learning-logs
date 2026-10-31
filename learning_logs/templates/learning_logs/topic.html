@@ -37,7 +37,7 @@
         <summary class="chip" style="cursor: pointer">
           <svg width="12" height="12"><use href="#i-plus" /></svg>标签
         </summary>
-        <div class="dropmenu__panel" style="padding: 0.75rem; width: 240px">
+        <div class="dropmenu__panel" style="padding: 0.75rem; width: 250px">
           <form method="post" class="stack-sm">
             {% csrf_token %}
             <label class="field">
@@ -52,6 +52,17 @@
             </label>
             <button class="btn btn--primary btn--sm" type="submit">保存标签</button>
           </form>
+          <hr />
+          <button
+            type="button"
+            class="btn btn--sm btn--soft btn--block"
+            data-ai-tags="{% url 'learning_logs:suggest_tags' topic.id %}"
+          >
+            <svg width="14" height="14"><use href="#i-spark" /></svg>让 AI 建议标签
+          </button>
+          <p class="tiny muted mt-1" data-ai-tags-hint>
+            基于本主题最近的笔记，补充 3-5 个可复用标签。
+          </p>
         </div>
       </details>
     </div>
@@ -267,6 +278,43 @@
 {% block extra_js %}
 <script>
   (function () {
+    var aiButton = document.querySelector("[data-ai-tags]");
+    if (aiButton) {
+      var hint = document.querySelector("[data-ai-tags-hint]");
+      aiButton.addEventListener("click", function () {
+        aiButton.disabled = true;
+        if (hint) hint.textContent = "正在让 AI 读笔记…";
+        fetch(aiButton.getAttribute("data-ai-tags"), {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": (document.cookie.match(/(^|;\s*)csrftoken=([^;]+)/) || [])[2] || "",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          credentials: "same-origin",
+        })
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (payload) {
+            if (payload && payload.ok) {
+              if (hint) hint.textContent = payload.message + " 刷新后可见。";
+              if (window.LL && window.LL.toast) window.LL.toast(payload.message, "success");
+              setTimeout(function () {
+                window.location.reload();
+              }, 900);
+            } else {
+              if (hint) hint.textContent = (payload && payload.error) || "AI 建议失败，请稍后再试。";
+            }
+          })
+          .catch(function () {
+            if (hint) hint.textContent = "网络异常，未能获取 AI 建议。";
+          })
+          .finally(function () {
+            aiButton.disabled = false;
+          });
+      });
+    }
+
     var search = document.querySelector("[data-entry-filter]");
     var items = Array.prototype.slice.call(document.querySelectorAll("[data-entry-item]"));
     if (!items.length) return;

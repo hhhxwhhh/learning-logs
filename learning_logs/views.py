@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .ai.providers import AIError
-from .ai.service import generate_flashcards
+from .ai.service import generate_flashcards, suggest_tags as suggest_tags_service
 from .forms import (
     CommentForm,
     EntryForm,
@@ -1248,3 +1248,30 @@ def card_stats(request):
         "max_daily": max((row["count"] for row in daily), default=0) or 1,
     }
     return render(request, "learning_logs/card_stats.html", context)
+
+
+@login_required
+@require_POST
+def suggest_tags(request, topic_id):
+    """让 AI 为主题建议标签，直接写入标签并返回建议结果。"""
+    topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
+    try:
+        names = suggest_tags_service(topic)
+    except AIError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    except Exception:  # noqa: BLE001
+        logger.exception("AI 标签建议失败")
+        return JsonResponse({"ok": False, "error": "AI 服务暂时不可用，请稍后再试。"}, status=502)
+
+    current = [tag.name for tag in tags_service.tags_of(topic)]
+    merged = list(dict.fromkeys(current + [name for name in names if name not in current]))
+    tags_service.sync_tags(request.user, topic, ", ".join(merged[:8]))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "suggested": names,
+            "applied": tags_service.tags_input_of(topic),
+            "message": f"已补充 {len(names)} 个 AI 建议标签。",
+        }
+    )
