@@ -35,6 +35,15 @@
     <span class="metric__hint">{{ overview.entry_count }} 条笔记 · {{ overview.completed_entries }} 条已掌握</span>
   </div>
   <div class="metric">
+    <span class="metric__label">今日复习</span>
+    <span class="metric__value">{{ overview.due_cards }}<small>张</small></span>
+    <span class="metric__hint">
+      {% if overview.due_cards %}
+      <a href="{% url 'learning_logs:review' %}">开始复习 →</a>
+      {% else %}暂无到期卡片{% endif %}
+    </span>
+  </div>
+  <div class="metric">
     <span class="metric__label">进行中</span>
     <span class="metric__value">{{ overview.active_paths }}<small>条路径</small></span>
     <span class="metric__hint">{{ overview.active_goals }} 个未完成目标</span>

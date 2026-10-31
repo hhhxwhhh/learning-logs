@@ -13,6 +13,7 @@ from django.utils import timezone
 from learning_logs.models import (
     ChatMessage,
     ChatSession,
+    Flashcard,
     LearningPath,
     PathStep,
     StepResource,
@@ -184,3 +185,44 @@ def generate_learning_path(
                 StepResource.objects.create(step=step, title=resource.strip()[:200])
 
     return path
+
+
+def generate_flashcards(topic: Topic, count: int = 8, model: str | None = None) -> int:
+    """让模型从笔记生成闪卡，返回新增数量（相同正面自动去重）。"""
+    context = prompts.build_context(topic, limit=4000)
+    provider = get_provider()
+    raw = provider.complete(
+        [
+            Message(role="system", content=prompts.FLASHCARD_SYSTEM),
+            Message(role="user", content=prompts.flashcard_prompt(context, count)),
+        ],
+        model=resolve_model(model),
+    )
+    data = _extract_json(raw)
+
+    cards = data.get("cards") or data.get("items") or []
+    if not isinstance(cards, list):
+        raise AIError("模型没有返回合法的闪卡列表。")
+
+    existing = {
+        front.lower()
+        for front in Flashcard.objects.filter(user=topic.owner, topic=topic).values_list(
+            "front", flat=True
+        )
+    }
+
+    created = 0
+    for item in cards[:count]:
+        if not isinstance(item, dict):
+            continue
+        front = str(item.get("front") or "").strip()[:300]
+        back = str(item.get("back") or "").strip()
+        if not front or not back or front.lower() in existing:
+            continue
+        Flashcard.objects.create(user=topic.owner, topic=topic, front=front, back=back)
+        existing.add(front.lower())
+        created += 1
+
+    if created == 0:
+        raise AIError("没有生成新卡片（可能模型返回的内容与已有卡片重复）。")
+    return created

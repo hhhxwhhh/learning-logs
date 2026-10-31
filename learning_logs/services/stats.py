@@ -8,7 +8,14 @@ from datetime import date, datetime, time, timedelta
 from django.db.models import Count, Sum
 from django.utils import timezone
 
-from learning_logs.models import Entry, LearningGoal, LearningPath, StudySession, Topic
+from learning_logs.models import (
+    Entry,
+    Flashcard,
+    LearningGoal,
+    LearningPath,
+    StudySession,
+    Topic,
+)
 
 
 def _local_date(value):
@@ -136,6 +143,9 @@ def overview(user) -> dict:
         "streak": current_streak(user),
         "active_goals": LearningGoal.objects.filter(user=user, completed=False).count(),
         "active_paths": LearningPath.objects.filter(user=user, is_completed=False).count(),
+        "due_cards": Flashcard.objects.filter(
+            user=user, due_date__lte=timezone.localdate()
+        ).count(),
     }
 
 

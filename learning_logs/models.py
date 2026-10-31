@@ -274,4 +274,63 @@ class ChatMessage(models.Model):
 
 
 def default_review_date():
-    return timezone.localdate() + timedelta(days=1)
+    """新卡默认当天可复习，先学一遍再进入间隔队列。"""
+    return timezone.localdate()
+
+
+class Flashcard(models.Model):
+    """间隔重复闪卡：用 SM-2 算法安排复习时间。"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="flashcards"
+    )
+    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name="flashcards")
+    front = models.CharField("正面/问题", max_length=300)
+    back = models.TextField("背面/答案")
+    source_entry = models.ForeignKey(
+        Entry, on_delete=models.SET_NULL, null=True, blank=True, related_name="flashcards"
+    )
+
+    ease_factor = models.FloatField("难度系数", default=2.5)
+    interval_days = models.PositiveIntegerField("间隔天数", default=0)
+    repetitions = models.PositiveIntegerField("连续答对次数", default=0)
+    lapses = models.PositiveIntegerField("遗忘次数", default=0)
+    due_date = models.DateField("下次复习", default=default_review_date)
+    last_reviewed_at = models.DateTimeField("上次复习", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["due_date", "id"]
+        verbose_name = "闪卡"
+        verbose_name_plural = "闪卡"
+
+    def __str__(self):
+        return self.front
+
+    def review(self, quality: int):
+        """按 SM-2 更新记忆参数。quality: 0-5，<3 视为遗忘。"""
+        quality = max(0, min(5, int(quality)))
+
+        if quality < 3:
+            self.repetitions = 0
+            self.interval_days = 1
+            self.lapses += 1
+        else:
+            if self.repetitions == 0:
+                self.interval_days = 1
+            elif self.repetitions == 1:
+                self.interval_days = 6
+            else:
+                self.interval_days = max(1, round(self.interval_days * self.ease_factor))
+            self.repetitions += 1
+
+        self.ease_factor = max(
+            1.3, self.ease_factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+        )
+        self.due_date = timezone.localdate() + timedelta(days=self.interval_days)
+        self.last_reviewed_at = timezone.now()
+        self.save()
+        return self.due_date
+
+    def is_due(self):
+        return self.due_date <= timezone.localdate()

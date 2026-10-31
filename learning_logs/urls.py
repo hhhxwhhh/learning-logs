@@ -37,6 +37,12 @@ urlpatterns = [
     path("steps/<int:step_id>/", views.step_detail, name="step_detail"),
     path("steps/<int:step_id>/toggle-completion/", views.toggle_step_completion, name="toggle_step_completion"),
     path("resources/<int:resource_id>/toggle-completion/", views.toggle_resource_completion, name="toggle_resource_completion"),
+    # 闪卡复习
+    path("flashcards/", views.flashcards, name="flashcards"),
+    path("flashcards/review/", views.review, name="review"),
+    path("flashcards/<int:card_id>/answer/", views.review_answer, name="review_answer"),
+    path("flashcards/<int:card_id>/delete/", views.delete_flashcard, name="delete_flashcard"),
+    path("flashcards/generate/<int:topic_id>/", views.generate_cards, name="generate_cards"),
     # AI 助教
     path("topics/<int:topic_id>/ai-assistant/", ai_views.assistant, name="ai_assistant"),
     path("topics/<int:topic_id>/ai-assistant/new/", ai_views.new_session, name="ai_new_session"),

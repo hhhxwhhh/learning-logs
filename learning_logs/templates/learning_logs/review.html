@@ -1,0 +1,102 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}复习 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Review</div>
+    <h1>今日复习</h1>
+    <p>先自己想答案，再翻面核对。想不起来不是失败，是记忆需要被重新巩固。</p>
+  </div>
+  <a class="btn btn--ghost" href="{% url 'learning_logs:flashcards' %}">返回闪卡</a>
+</div>
+
+{% if card %}
+<div class="between mb-2">
+  <span class="small muted">剩余 {{ remaining }} 张</span>
+  <span class="badge badge--outline">{{ card.topic.text }}</span>
+</div>
+
+<div class="flashcard-stage">
+  <div class="flashcard" id="flashcard" role="button" tabindex="0" aria-label="翻转卡片">
+    <div class="flashcard__face">
+      <span class="flashcard__label">问题</span>
+      <div style="font-size: 1.15rem; font-weight: 600; line-height: 1.6">{{ card.front }}</div>
+      <div class="hint mt-2">点击卡片或按 <kbd>空格</kbd> 查看答案</div>
+    </div>
+    <div class="flashcard__face flashcard__face--back">
+      <span class="flashcard__label">答案</span>
+      <div class="prose" style="font-size: 1rem">{{ card.back|linebreaksbr }}</div>
+    </div>
+  </div>
+</div>
+
+<form method="post" action="{% url 'learning_logs:review_answer' card.id %}" id="answer-form" class="mt-3">
+  {% csrf_token %}
+  <div class="cluster" style="justify-content: center" id="quality-group">
+    <button class="btn btn--danger" type="submit" name="quality" value="1" data-key="1">忘了 <kbd>1</kbd></button>
+    <button class="btn" type="submit" name="quality" value="3" data-key="2">有点模糊 <kbd>2</kbd></button>
+    <button class="btn btn--soft" type="submit" name="quality" value="4" data-key="3">记得 <kbd>3</kbd></button>
+    <button class="btn btn--primary" type="submit" name="quality" value="5" data-key="4">秒答 <kbd>4</kbd></button>
+  </div>
+</form>
+
+<p class="center small muted mt-2" id="flip-hint">先翻面看答案，再评价自己的记忆程度。</p>
+{% else %}
+<div class="card">
+  <div class="empty">
+    <div class="empty__icon"><svg><use href="#i-check" /></svg></div>
+    <h3>今天的复习完成了</h3>
+    <p>没有到期的卡片。按间隔重复的节奏，明天再来就好。</p>
+    <a class="btn btn--primary" href="{% url 'learning_logs:flashcards' %}">查看全部闪卡</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if card %}
+<script>
+  (function () {
+    const cardEl = document.getElementById("flashcard");
+    const form = document.getElementById("answer-form");
+    const group = document.getElementById("quality-group");
+    const hint = document.getElementById("flip-hint");
+
+    // 未翻面时隐藏评分按钮，避免“看题就打分发”
+    group.style.opacity = "0.35";
+    group.style.pointerEvents = "none";
+
+    function flip() {
+      cardEl.classList.toggle("is-flipped");
+      const flipped = cardEl.classList.contains("is-flipped");
+      group.style.opacity = flipped ? "1" : "0.35";
+      group.style.pointerEvents = flipped ? "auto" : "none";
+      hint.textContent = flipped ? "按 1-4 评价记忆程度，会自动跳到下一张。" : "先翻面看答案，再评价自己的记忆程度。";
+    }
+
+    cardEl.addEventListener("click", flip);
+    cardEl.addEventListener("keydown", function (event) {
+      if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        flip();
+      }
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === " ") {
+        event.preventDefault();
+        flip();
+        return;
+      }
+      const btn = group.querySelector('[data-key="' + event.key + '"]');
+      if (btn && cardEl.classList.contains("is-flipped")) {
+        event.preventDefault();
+        btn.click();
+      }
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

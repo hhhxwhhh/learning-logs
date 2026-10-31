@@ -1,0 +1,136 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}闪卡复习 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Spaced repetition</div>
+    <h1>闪卡复习</h1>
+    <p>按 SM-2 算法安排复习：记得越牢，下次间隔越长；忘了就重来。</p>
+  </div>
+  <div class="cluster">
+    {% if due_count %}
+    <a class="btn btn--primary" href="{% url 'learning_logs:review' %}">
+      <svg width="16" height="16"><use href="#i-cards" /></svg>开始复习（{{ due_count }}）
+    </a>
+    {% else %}
+    <span class="badge badge--teal">今天没有待复习卡片</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid mb-3">
+  <div class="metric">
+    <span class="metric__label">卡片总数</span>
+    <span class="metric__value">{{ total }}<small>张</small></span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">今日待复习</span>
+    <span class="metric__value">{{ due_count }}<small>张</small></span>
+    <span class="metric__hint">逾期也会出现在队列里</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">已牢记</span>
+    <span class="metric__value">{{ learned }}<small>张</small></span>
+    <span class="metric__hint">连续答对 3 次以上</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">覆盖主题</span>
+    <span class="metric__value">{{ topics|length }}<small>个</small></span>
+  </div>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>用 AI 从笔记生成</h3>
+        <span class="tiny muted">每张卡只考一个知识点</span>
+      </div>
+      <div class="list">
+        {% for topic in topics %}
+        <div class="list__item">
+          <div class="list__main">
+            <span class="list__title">{{ topic.text }}</span>
+            <span class="list__meta">已有 {{ topic.card_count }} 张卡片</span>
+          </div>
+          <form method="post" action="{% url 'learning_logs:generate_cards' topic.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="count" value="8" />
+            <button class="btn btn--sm btn--soft" type="submit">
+              <svg width="14" height="14"><use href="#i-spark" /></svg>生成 8 张
+            </button>
+          </form>
+        </div>
+        {% empty %}
+        <div class="card__body muted small">先创建主题并写几条笔记，再来生成闪卡。</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>全部卡片</h3>
+        <span class="tiny muted">{{ total }} 张</span>
+      </div>
+      {% if cards %}
+      <div class="list">
+        {% for card in cards %}
+        <div class="list__item" style="align-items: flex-start">
+          <div class="list__main">
+            <span class="list__title" style="white-space: normal">{{ card.front }}</span>
+            <span class="list__meta">
+              <span>{{ card.topic.text }}</span>
+              <span>{% if card.due_date <= today %}今天复习{% else %}{{ card.due_date|date:"n月j日" }} 复习{% endif %}</span>
+              <span>已复习 {{ card.repetitions }} 次</span>
+            </span>
+          </div>
+          <form
+            method="post"
+            action="{% url 'learning_logs:delete_flashcard' card.id %}"
+            data-confirm="删除这张闪卡？"
+          >
+            {% csrf_token %}
+            <button class="btn btn--sm btn--ghost" type="submit" aria-label="删除">
+              <svg width="14" height="14"><use href="#i-trash" /></svg>
+            </button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">
+        <div class="empty__icon"><svg><use href="#i-cards" /></svg></div>
+        <h3>还没有闪卡</h3>
+        <p>用上面的 AI 生成，或者手动添加一张。</p>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside class="card">
+    <div class="card__head"><h3>手动添加</h3></div>
+    <form method="post" class="card__body stack">
+      {% csrf_token %}
+      <div class="field">
+        <label class="label" for="card-front">问题</label>
+        <input class="input" id="card-front" name="front" maxlength="300" required placeholder="例如：select_related 解决什么问题？" />
+      </div>
+      <div class="field">
+        <label class="label" for="card-back">答案</label>
+        <textarea class="textarea" id="card-back" name="back" rows="4" required placeholder="用一句话说清楚"></textarea>
+      </div>
+      <div class="field">
+        <label class="label" for="card-topic">所属主题</label>
+        <select class="select" id="card-topic" name="topic" required>
+          {% for topic in topics %}
+          <option value="{{ topic.id }}">{{ topic.text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn--primary" type="submit">添加闪卡</button>
+    </form>
+  </aside>
+</div>
+{% endblock %}

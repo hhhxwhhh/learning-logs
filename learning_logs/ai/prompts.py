@@ -84,3 +84,16 @@ def recommend_prompt(context: str) -> str:
 def plan_prompt(goal: str, context: str = "") -> str:
     extra = f"\n\n可参考的已有笔记：\n{context}" if context else ""
     return f"我的学习目标：{goal}{extra}"
+
+
+FLASHCARD_SYSTEM = (
+    "你是记忆卡片设计师。请把笔记提炼成问答闪卡，"
+    "严格返回 JSON，不要包含代码块标记或解释文字。JSON 结构：\n"
+    '{"cards": [{"front": "问题（不超过 60 字，聚焦一个知识点）", '
+    '"back": "答案（不超过 200 字，具体、可自测）"}]}\n'
+    "每张卡只考一个点，问题要能脱离原文独立理解，答案要包含关键细节。"
+)
+
+
+def flashcard_prompt(context: str, count: int = 8) -> str:
+    return f"请基于以下笔记生成 {count} 张闪卡：\n\n{context}"

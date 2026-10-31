@@ -57,6 +57,12 @@
             <svg width="16" height="16"><use href="#i-route" /></svg>学习路径
           </a>
           <a
+            class="nav__link {% if request.resolver_match.url_name == 'flashcards' or request.resolver_match.url_name == 'review' %}is-active{% endif %}"
+            href="{% url 'learning_logs:flashcards' %}"
+          >
+            <svg width="16" height="16"><use href="#i-cards" /></svg>闪卡
+          </a>
+          <a
             class="nav__link {% if request.resolver_match.namespace == 'analytics' %}is-active{% endif %}"
             href="{% url 'analytics:dashboard' %}"
           >
@@ -148,6 +154,7 @@
           <a href="{% url 'learning_logs:topics' %}">主题</a>
           <a href="{% url 'learning_logs:dashboard' %}">仪表盘</a>
           <a href="{% url 'learning_logs:learning_paths' %}">学习路径</a>
+          <a href="{% url 'learning_logs:flashcards' %}">闪卡复习</a>
           <a href="{% url 'analytics:dashboard' %}">学习分析</a>
           <a href="{% url 'learning_logs:goals' %}">学习目标</a>
           <form action="{% url 'learning_logs:search' %}" method="get" class="mt-2">

@@ -1,14 +1,13 @@
-from datetime import timedelta
-
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Sum
-from django.http import Http404, JsonResponse
+from django.db.models import Count
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from .ai.providers import AIError
+from .ai.service import generate_flashcards
 from .forms import (
     CommentForm,
     EntryForm,
@@ -18,7 +17,9 @@ from .forms import (
     TopicForm,
 )
 from .models import (
+    Comment,
     Entry,
+    Flashcard,
     LearningGoal,
     LearningPath,
     PathStep,
@@ -27,7 +28,6 @@ from .models import (
     Topic,
 )
 from .services import stats
-from .utils.markdown import render_markdown
 
 app_name = "learning_logs"
 # Create your views here.
@@ -421,3 +421,95 @@ def delete_learning_path(request, path_id):
         return redirect('learning_logs:learning_paths')
     
     return redirect('learning_logs:learning_path_detail', path_id=path.id)
+
+
+@login_required
+def flashcards(request):
+    """闪卡总览：今日待复习、卡片列表与 AI 生成入口。"""
+    today = timezone.localdate()
+    cards = Flashcard.objects.filter(user=request.user).select_related("topic")
+    due_cards = cards.filter(due_date__lte=today)
+
+    if request.method == "POST":
+        front = (request.POST.get("front") or "").strip()
+        back = (request.POST.get("back") or "").strip()
+        topic_id = request.POST.get("topic")
+        topic = Topic.objects.filter(id=topic_id, owner=request.user).first()
+        if not front or not back or topic is None:
+            messages.error(request, "请填写问题、答案并选择一个主题。")
+        else:
+            Flashcard.objects.create(
+                user=request.user, topic=topic, front=front[:300], back=back
+            )
+            messages.success(request, "闪卡已添加。")
+            return redirect("learning_logs:flashcards")
+
+    context = {
+        "cards": cards[:60],
+        "total": cards.count(),
+        "due_count": due_cards.count(),
+        "learned": cards.filter(repetitions__gte=3).count(),
+        "topics": Topic.objects.filter(owner=request.user).annotate(
+            card_count=Count("flashcards")
+        ),
+        "today": today,
+    }
+    return render(request, "learning_logs/flashcards.html", context)
+
+
+@login_required
+def review(request):
+    """今日复习队列，一次只显示一张卡。"""
+    cards = (
+        Flashcard.objects.filter(user=request.user, due_date__lte=timezone.localdate())
+        .select_related("topic")
+        .order_by("due_date", "id")
+    )
+    total = cards.count()
+    card = cards.first()
+
+    return render(
+        request,
+        "learning_logs/review.html",
+        {"card": card, "remaining": total, "total": total},
+    )
+
+
+@login_required
+@require_POST
+def review_answer(request, card_id):
+    card = get_object_or_404(Flashcard, id=card_id, user=request.user)
+    try:
+        quality = int(request.POST.get("quality", 3))
+    except (TypeError, ValueError):
+        quality = 3
+    card.review(quality)
+    return redirect("learning_logs:review")
+
+
+@login_required
+@require_POST
+def delete_flashcard(request, card_id):
+    card = get_object_or_404(Flashcard, id=card_id, user=request.user)
+    card.delete()
+    messages.success(request, "闪卡已删除。")
+    return redirect("learning_logs:flashcards")
+
+
+@login_required
+@require_POST
+def generate_cards(request, topic_id):
+    topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
+    try:
+        count = int(request.POST.get("count", 8))
+    except (TypeError, ValueError):
+        count = 8
+    count = max(1, min(count, 15))
+
+    try:
+        created = generate_flashcards(topic, count=count)
+    except AIError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"已为「{topic.text}」生成 {created} 张闪卡。")
+    return redirect("learning_logs:flashcards")
