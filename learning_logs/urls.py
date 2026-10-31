@@ -19,6 +19,14 @@ urlpatterns = [
     # API 文档与令牌
     path("settings/api/", views.api_tokens, name="api_tokens"),
     path("api/docs/", views.api_docs, name="api_docs"),
+    # 提醒中心
+    path("notifications/", views.notifications_view, name="notifications"),
+    path(
+        "notifications/<int:notification_id>/read/",
+        views.mark_notification_read,
+        name="notification_read",
+    ),
+    path("notifications/read-all/", views.mark_all_read, name="notifications_read_all"),
     # 主页
     path("", views.index, name="index"),
     # 主题

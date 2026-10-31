@@ -390,6 +390,50 @@ class Tag(models.Model):
         return sum(ord(char) * (index + 3) for index, char in enumerate(self.name)) % 360
 
 
+class Notification(models.Model):
+    """站内提醒：由系统按学习状态惰性生成，用户可标记已读。"""
+
+    KIND_DUE = "due"
+    KIND_STREAK = "streak"
+    KIND_WEEKLY = "weekly"
+    KIND_GOAL = "goal"
+    KIND_IDLE = "idle"
+    KIND_CHOICES = [
+        (KIND_DUE, "复习提醒"),
+        (KIND_STREAK, "连续中断"),
+        (KIND_WEEKLY, "周报待生成"),
+        (KIND_GOAL, "目标临期"),
+        (KIND_IDLE, "主题搁置"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    kind = models.CharField("类型", max_length=16, choices=KIND_CHOICES, default=KIND_DUE)
+    title = models.CharField("标题", max_length=120)
+    body = models.CharField("内容", max_length=240, blank=True, default="")
+    link = models.CharField("跳转", max_length=200, blank=True, default="")
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    read_at = models.DateTimeField("已读时间", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "站内提醒"
+        verbose_name_plural = "站内提醒"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["user", "read_at"])]
+
+    def __str__(self):
+        return f"{self.user} · {self.title}"
+
+    @property
+    def is_unread(self) -> bool:
+        return self.read_at is None
+
+    def mark_read(self):
+        if self.read_at is None:
+            self.read_at = timezone.now()
+            self.save(update_fields=["read_at"])
+        return self
+
+
 class ApiToken(models.Model):
     """个人 API 令牌：用于脚本或第三方工具读取自己的学习数据。"""
 

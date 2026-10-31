@@ -1,0 +1,87 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}提醒 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Notifications</div>
+    <h1>提醒</h1>
+    <p>系统会按你的学习状态自动提醒：该复习了、连续断了、目标快到期了。</p>
+  </div>
+  <div class="cluster">
+    {% if unread %}
+    <form method="post" action="{% url 'learning_logs:notifications_read_all' %}">
+      {% csrf_token %}
+      <button class="btn btn--primary" type="submit">
+        <svg width="16" height="16"><use href="#i-check" /></svg>全部标记已读
+      </button>
+    </form>
+    {% endif %}
+    <a class="btn btn--ghost" href="{% url 'learning_logs:today' %}">今日速览</a>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">未读提醒</span>
+    <span class="metric__value">{{ unread }}</span>
+    <span class="metric__hint">点击即可跳转处理</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">累计提醒</span>
+    <span class="metric__value">{{ total }}</span>
+    <span class="metric__hint">最多保留最近 40 条</span>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card__head">
+    <h3>全部提醒</h3>
+    <span class="tiny muted">按时间从新到旧</span>
+  </div>
+  <div class="card__body">
+    {% if items %}
+    <div class="list">
+      {% for item in items %}
+      <div class="list__item">
+        <span class="todo-item__dot {% if item.is_unread %}is-active{% endif %}"></span>
+        <div class="list__main">
+          <span class="list__title">{{ item.title }}</span>
+          <span class="list__meta">
+            <span>{{ item.get_kind_display }}</span>
+            <span>{{ item.created_at|date:"m-d H:i" }}</span>
+            {% if item.body %}<span>{{ item.body }}</span>{% endif %}
+          </span>
+        </div>
+        <div class="cluster">
+          {% if item.link %}
+          <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:notification_read' item.id %}">
+            去处理
+          </a>
+          {% endif %}
+          {% if item.is_unread %}
+          <form method="post" action="{% url 'learning_logs:notification_read' item.id %}">
+            {% csrf_token %}
+            <button class="btn btn--sm" type="submit">
+              <svg width="14" height="14"><use href="#i-check" /></svg>已读
+            </button>
+          </form>
+          {% else %}
+          <span class="tiny muted">已读</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="empty__icon"><svg width="24" height="24"><use href="#i-bell" /></svg></div>
+      <h3>暂时没有提醒</h3>
+      <p>当闪卡到期、连续中断或目标临期时，这里会自动出现提醒。</p>
+      <a class="btn btn--primary mt-2" href="{% url 'learning_logs:today' %}">回到今日速览</a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

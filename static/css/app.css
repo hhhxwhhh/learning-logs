@@ -2696,6 +2696,43 @@
     min-width: 560px;
   }
 
+  /* 提醒铃铛 ------------------------------------------------------------ */
+  .bell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .bell__dot {
+    position: absolute;
+    top: -4px;
+    right: -6px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+
+  .dropmenu__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .dropmenu__panel a > div {
+    min-width: 0;
+  }
+
 /* --------------------------------------------------------------------------
    工具类
    -------------------------------------------------------------------------- */

@@ -99,6 +99,50 @@
         {% endif %}
 
         <div class="header__actions">
+          {% if unread_count %}
+          <details class="dropmenu">
+            <summary class="icon-btn" aria-label="提醒：{{ unread_count }} 条未读">
+              <span class="bell">
+                <svg width="18" height="18"><use href="#i-bell" /></svg>
+                <span class="bell__dot">{{ unread_count }}</span>
+              </span>
+            </summary>
+            <div class="dropmenu__panel" style="width: 300px">
+              <div class="dropmenu__head">
+                <strong>提醒</strong>
+                <span class="tiny muted">{{ unread_count }} 条未读</span>
+              </div>
+              {% for item in unread_items %}
+              <a href="{% url 'learning_logs:notification_read' item.id %}">
+                <div style="min-width: 0">
+                  <div class="truncate small">{{ item.title }}</div>
+                  <div class="tiny muted truncate">{{ item.body }}</div>
+                </div>
+              </a>
+              {% endfor %}
+              <hr />
+              <a href="{% url 'learning_logs:notifications' %}">
+                <svg width="16" height="16"><use href="#i-bell" /></svg>查看全部提醒
+              </a>
+              <form method="post" action="{% url 'learning_logs:notifications_read_all' %}">
+                {% csrf_token %}
+                <button type="submit">
+                  <svg width="16" height="16"><use href="#i-check" /></svg>全部标记已读
+                </button>
+              </form>
+            </div>
+          </details>
+          {% else %}
+          <a
+            class="icon-btn"
+            href="{% url 'learning_logs:notifications' %}"
+            aria-label="提醒"
+            title="提醒"
+          >
+            <svg width="18" height="18"><use href="#i-bell" /></svg>
+          </a>
+          {% endif %}
+
           <button
             type="button"
             class="icon-btn"
@@ -135,6 +179,9 @@
               </a>
               <a href="{% url 'learning_logs:focus' %}">
                 <svg width="16" height="16"><use href="#i-timer" /></svg>专注计时
+              </a>
+              <a href="{% url 'learning_logs:notifications' %}">
+                <svg width="16" height="16"><use href="#i-bell" /></svg>提醒中心
               </a>
               <a href="{% url 'learning_logs:features' %}">
                 <svg width="16" height="16"><use href="#i-book" /></svg>功能地图
@@ -189,6 +236,7 @@
           <a href="{% url 'learning_logs:garden' %}">学习花园</a>
           <a href="{% url 'learning_logs:graph' %}">知识图谱</a>
           <a href="{% url 'learning_logs:today' %}">今日速览</a>
+          <a href="{% url 'learning_logs:notifications' %}">提醒中心</a>
           <a href="{% url 'learning_logs:flashcards' %}">闪卡复习</a>
           <a href="{% url 'analytics:dashboard' %}">学习分析</a>
           <a href="{% url 'learning_logs:goals' %}">学习目标</a>

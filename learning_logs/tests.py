@@ -15,11 +15,22 @@ from .models import (
     Entry,
     Flashcard,
     LearningPath,
+    Notification,
     StudySession,
     Tag,
     Topic,
 )
-from .services import achievements, export, garden, graph, report, search, stats, tags
+from .services import (
+    achievements,
+    export,
+    garden,
+    graph,
+    notifications,
+    report,
+    search,
+    stats,
+    tags,
+)
 
 
 class FakeProvider:
@@ -829,3 +840,83 @@ class ApiTokenTests(BaseTestCase):
         payload = self.client.get(reverse("learning_logs:api_stats"), **self.auth()).json()
         self.assertTrue(payload["ok"])
         self.assertIn("streak", payload)
+
+
+class NotificationTests(BaseTestCase):
+    """站内提醒的生成、已读与隔离。"""
+
+    def test_due_cards_notification(self):
+        Flashcard.objects.create(user=self.alice, topic=self.topic, front="Q", back="A")
+        created = notifications.generate(self.alice)
+        self.assertGreaterEqual(created, 1)
+        item = Notification.objects.filter(user=self.alice, kind=Notification.KIND_DUE).first()
+        self.assertIsNotNone(item)
+        self.assertIn("闪卡", item.title)
+
+    def test_generate_is_idempotent_per_day(self):
+        Flashcard.objects.create(user=self.alice, topic=self.topic, front="Q", back="A")
+        self.assertGreaterEqual(notifications.generate(self.alice), 1)
+        before = Notification.objects.filter(user=self.alice).count()
+        self.assertEqual(notifications.generate(self.alice), 0)
+        self.assertEqual(Notification.objects.filter(user=self.alice).count(), before)
+
+    def test_streak_notification_when_no_entry_today(self):
+        Entry.objects.filter(id=self.entry.id).update(
+            date_added=timezone.now() - timedelta(days=3)
+        )
+        notifications.generate(self.alice)
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.alice, kind=Notification.KIND_STREAK
+            ).exists()
+        )
+
+    def test_notifications_page_and_mark_read(self):
+        Flashcard.objects.create(user=self.alice, topic=self.topic, front="Q", back="A")
+        notifications.generate(self.alice)
+        response = self.client.get(reverse("learning_logs:notifications"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "闪卡")
+
+        item = Notification.objects.filter(user=self.alice).first()
+        response = self.client.post(
+            reverse("learning_logs:notification_read", args=[item.id])
+        )
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertFalse(item.is_unread)
+
+    def test_mark_all_read(self):
+        Flashcard.objects.create(user=self.alice, topic=self.topic, front="Q", back="A")
+        notifications.generate(self.alice)
+        self.assertGreater(notifications.unread_count(self.alice), 0)
+        self.client.post(reverse("learning_logs:notifications_read_all"))
+        self.assertEqual(notifications.unread_count(self.alice), 0)
+
+    def test_cannot_read_others_notification(self):
+        bob_card_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        Flashcard.objects.create(user=self.bob, topic=bob_card_topic, front="Q", back="A")
+        notifications.generate(self.bob)
+        item = Notification.objects.get(user=self.bob)
+
+        response = self.client.post(
+            reverse("learning_logs:notification_read", args=[item.id])
+        )
+        self.assertEqual(response.status_code, 404)
+        item.refresh_from_db()
+        self.assertTrue(item.is_unread)
+
+    def test_unread_count_in_context(self):
+        Flashcard.objects.create(user=self.alice, topic=self.topic, front="Q", back="A")
+        notifications.generate(self.alice)
+        response = self.client.get(reverse("learning_logs:notifications"))
+        self.assertGreaterEqual(response.context["unread_count"], 1)
+        self.assertContains(response, "bell__dot")
+
+    def test_prune_keeps_recent(self):
+        for index in range(45):
+            Notification.objects.create(
+                user=self.alice, kind=Notification.KIND_DUE, title=f"提醒 {index}"
+            )
+        notifications.prune(self.alice)
+        self.assertLessEqual(Notification.objects.filter(user=self.alice).count(), 40)
