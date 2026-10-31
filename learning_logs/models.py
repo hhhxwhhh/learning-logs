@@ -28,6 +28,8 @@ class Topic(models.Model):
     )
     total_items = models.IntegerField("条目总数", default=0)
     completed_items = models.IntegerField("已完成条目数", default=0)
+    share_token = models.CharField("分享令牌", max_length=40, blank=True, default="", db_index=True)
+    shared_at = models.DateTimeField("开启分享时间", null=True, blank=True)
 
     class Meta:
         verbose_name = "主题"

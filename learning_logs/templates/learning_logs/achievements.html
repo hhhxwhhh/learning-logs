@@ -1,0 +1,74 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}学习成就 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Achievements</div>
+    <h1>学习成就</h1>
+    <p>徽章只是刻度，真正被记录的是你一次次坐下来学习的那段时间。</p>
+  </div>
+  <a class="btn btn--ghost" href="{% url 'learning_logs:garden' %}">回到花园</a>
+</div>
+
+<section class="card mb-3">
+  <div class="card__body">
+    <div class="between mb-2">
+      <div>
+        <div class="tiny muted">已获得徽章</div>
+        <div class="strong" style="font-size: 1.6rem">{{ unlocked_count }} / {{ total_count }}</div>
+      </div>
+      <span class="badge badge--accent">完成度 {{ completion }}%</span>
+    </div>
+    <div class="progress"><div class="progress__bar" style="width: {{ completion }}%"></div></div>
+
+    {% if next_up %}
+    <div class="mt-3">
+      <div class="tiny muted mb-1">离你最近的三个</div>
+      <div class="grid">
+        {% for badge in next_up %}
+        <div class="panel small">
+          <div class="between">
+            <span class="strong">{{ badge.name }}</span>
+            <span class="tiny muted">{{ badge.current }} / {{ badge.target }} {{ badge.unit }}</span>
+          </div>
+          <div class="progress mt-1"><div class="progress__bar" style="width: {{ badge.progress }}%"></div></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<div class="badge-grid">
+  {% for badge in badges %}
+  <article class="badge-card {% if badge.unlocked %}is-unlocked{% endif %}">
+    <div class="badge-card__icon">
+      <svg width="22" height="22"><use href="#{{ badge.icon }}" /></svg>
+    </div>
+    <div class="badge-card__body">
+      <div class="between">
+        <h3>{{ badge.name }}</h3>
+        {% if badge.unlocked %}
+        <span class="badge badge--teal">已获得</span>
+        {% endif %}
+      </div>
+      <p class="small muted">{{ badge.description }}</p>
+
+      {% if badge.unlocked %}
+        {% if badge.achieved_at %}
+        <span class="tiny muted">获得于 {{ badge.achieved_at|date:"Y-m-d" }}</span>
+        {% else %}
+        <span class="tiny muted">已达成</span>
+        {% endif %}
+      {% else %}
+      <div class="progress mt-1"><div class="progress__bar" style="width: {{ badge.progress }}%"></div></div>
+      <span class="tiny muted">{{ badge.current }} / {{ badge.target }} {{ badge.unit }}</span>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

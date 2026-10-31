@@ -1,0 +1,39 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>暂时离线 · 知迹</title>
+    <meta name="theme-color" content="#f6f6f3" />
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("ll-theme");
+          if (theme) document.documentElement.setAttribute("data-theme", theme);
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=3" />
+  </head>
+  <body>
+    <main class="page">
+      <div class="container" style="max-width: 460px; padding-top: 12vh">
+        <div class="card">
+          <div class="card__body stack" style="align-items: center; text-align: center">
+            <img src="{% static 'icons/icon-192.png' %}" alt="" width="72" height="72" style="border-radius: 18px" />
+            <h1 style="font-size: 1.5rem">现在没有网络</h1>
+            <p class="small muted">
+              知迹的页面需要联网加载。你写下的内容都在服务器上，恢复网络后刷新即可继续。
+            </p>
+            <div class="cluster" style="justify-content: center">
+              <button class="btn btn--primary" type="button" onclick="location.reload()">重新加载</button>
+              <a class="btn btn--ghost" href="/">回到首页</a>
+            </div>
+          </div>
+        </div>
+        <p class="tiny muted center mt-3">离线页面已由 Service Worker 缓存</p>
+      </div>
+    </main>
+  </body>
+</html>

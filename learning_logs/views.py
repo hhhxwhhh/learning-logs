@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import timedelta
 
 from django.conf import settings
@@ -32,6 +33,7 @@ from .models import (
     Topic,
     WeeklyReport,
 )
+from .services import achievements as achievements_service
 from .services import export as export_service
 from .services import garden as garden_service
 from .services import report as report_service
@@ -433,6 +435,16 @@ def delete_learning_path(request, path_id):
 
 
 @login_required
+def achievements(request):
+    """学习成就：徽章解锁情况。"""
+    return render(
+        request,
+        "learning_logs/achievements.html",
+        achievements_service.collect(request.user),
+    )
+
+
+@login_required
 def garden(request):
     """学习花园：把主题与笔记可视化成一棵树。"""
     return render(request, "learning_logs/garden.html", garden_service.garden_context(request.user))
@@ -697,3 +709,42 @@ def weekly_report_generate(request):
     else:
         messages.success(request, "周报已生成，可以随时重新生成覆盖。")
     return redirect(f"/weekly/?week={start:%Y-%m-%d}")
+
+
+@login_required
+@require_POST
+def toggle_share(request, topic_id):
+    """开启 / 关闭主题的只读分享链接。"""
+    topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
+
+    if topic.share_token:
+        topic.share_token = ""
+        topic.shared_at = None
+        messages.success(request, "已关闭分享链接，之前的地址立即失效。")
+    else:
+        topic.share_token = secrets.token_urlsafe(16)
+        topic.shared_at = timezone.now()
+        messages.success(request, "分享链接已生成，任何拿到链接的人都能只读查看。")
+
+    topic.save(update_fields=["share_token", "shared_at"])
+    return redirect("learning_logs:topic", topic_id=topic.id)
+
+
+def shared_topic(request, token):
+    """公开只读页面：不需要登录，不带任何用户信息。"""
+    topic = (
+        Topic.objects.filter(share_token=token)
+        .exclude(share_token="")
+        .first()
+        if token
+        else None
+    )
+    if topic is None:
+        raise Http404("分享链接不存在或已失效")
+
+    context = {
+        "topic": topic,
+        "entries": topic.entry_set.order_by("-date_added"),
+        "entry_count": topic.total_items,
+    }
+    return render(request, "learning_logs/shared.html", context)

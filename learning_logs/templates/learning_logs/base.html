@@ -20,7 +20,11 @@
       })();
     </script>
     <link rel="icon" href="{% static 'images/favicon.png' %}" type="image/png" />
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=2" />
+    <link rel="apple-touch-icon" href="{% static 'icons/apple-touch-icon.png' %}" />
+    <link rel="manifest" href="{% url 'manifest' %}" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="知迹" />
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=3" />
     {% block extra_css %}{% endblock %}
   </head>
   <body>
@@ -123,9 +127,15 @@
               <a href="{% url 'learning_logs:goals' %}">
                 <svg width="16" height="16"><use href="#i-flag" /></svg>学习目标
               </a>
+              <a href="{% url 'learning_logs:achievements' %}">
+                <svg width="16" height="16"><use href="#i-target" /></svg>学习成就
+              </a>
               <a href="{% url 'learning_logs:weekly_report' %}">
                 <svg width="16" height="16"><use href="#i-chart" /></svg>学习周报
               </a>
+              <button type="button" id="install-app" class="hidden">
+                <svg width="16" height="16"><use href="#i-plus" /></svg>安装到桌面
+              </button>
               <a href="{% url 'learning_logs:data_tools' %}">
                 <svg width="16" height="16"><use href="#i-doc" /></svg>数据与备份
               </a>
@@ -176,7 +186,9 @@
       {% for message in messages %}
       <div class="toast toast--{{ message.tags|default:'info' }}" data-toast role="status">
         <div>{{ message }}</div>
-        <button type="button" class="toast__close" data-toast-close aria-label="关闭">✕</button>
+        <button type="button" class="toast__close" data-toast-close aria-label="关闭">
+          <svg width="12" height="12"><use href="#i-close" /></svg>
+        </button>
       </div>
       {% endfor %}
     </div>
@@ -221,7 +233,7 @@
       </div>
     </footer>
 
-    <script src="{% static 'js/app.js' %}?v=2" defer></script>
+    <script src="{% static 'js/app.js' %}?v=3" defer></script>
     {% block extra_js %}{% endblock %}
   </body>
 </html>

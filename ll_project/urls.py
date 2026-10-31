@@ -9,11 +9,14 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-from .views import healthz
+from .views import healthz, manifest, offline, service_worker
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("healthz/", healthz, name="healthz"),
+    path("sw.js", service_worker, name="service_worker"),
+    path("manifest.webmanifest", manifest, name="manifest"),
+    path("offline/", offline, name="offline"),
     path("", include("learning_logs.urls", namespace="learning_logs")),
     path("accounts/", include("accounts.urls", namespace="accounts")),
     path("analytics/", include("analytics.urls")),

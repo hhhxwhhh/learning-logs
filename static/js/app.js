@@ -148,7 +148,8 @@
           return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
         }) +
         "</div>" +
-        '<button type="button" class="toast__close" data-toast-close aria-label="关闭">✕</button>';
+        '<button type="button" class="toast__close" data-toast-close aria-label="关闭">' +
+        '<svg width="12" height="12"><use href="#i-close"/></svg></button>';
       stack.appendChild(el);
       initToasts();
     },
@@ -347,4 +348,77 @@
   }
 
   document.addEventListener("DOMContentLoaded", initPalette);
+})();
+
+
+/* ------------------------------------------------------------ 复制文本 */
+(function () {
+  "use strict";
+
+  document.addEventListener("click", function (event) {
+    const trigger = event.target.closest("[data-copy]");
+    if (!trigger) return;
+
+    const selector = trigger.getAttribute("data-copy");
+    const source = document.querySelector(selector);
+    const text = source ? (source.value || source.textContent || "") : "";
+    if (!text) return;
+
+    const done = function () {
+      window.LL.toast("链接已复制到剪贴板", "success");
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done).catch(function () {
+        window.LL.toast("复制失败，请手动选择文本", "error");
+      });
+      return;
+    }
+
+    // 非 HTTPS 环境下退回到选中文本
+    if (source.select) {
+      source.select();
+      document.execCommand("copy");
+      done();
+    }
+  });
+})();
+
+
+/* --------------------------------------------------- PWA：注册与安装提示 */
+(function () {
+  "use strict";
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js").catch(function () {
+        /* 不支持或被浏览器策略阻止时静默失败 */
+      });
+    });
+  }
+
+  let deferredPrompt = null;
+  const button = document.getElementById("install-app");
+
+  window.addEventListener("beforeinstallprompt", function (event) {
+    event.preventDefault();
+    deferredPrompt = event;
+    if (button) button.classList.remove("hidden");
+  });
+
+  if (button) {
+    button.addEventListener("click", function () {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.finally(function () {
+        deferredPrompt = null;
+        button.classList.add("hidden");
+      });
+    });
+  }
+
+  window.addEventListener("appinstalled", function () {
+    if (button) button.classList.add("hidden");
+    window.LL.toast("已安装到桌面", "success");
+  });
 })();

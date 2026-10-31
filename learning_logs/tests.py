@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import ChatSession, Entry, Flashcard, LearningPath, Topic
-from .services import export, garden, report, search, stats
+from .services import achievements, export, garden, report, search, stats
 
 
 class FakeProvider:
@@ -440,3 +440,93 @@ class WeeklyReportTests(BaseTestCase):
                 {"week": report.week_start_of().isoformat()},
             )
         self.assertEqual(response.status_code, 302)
+
+
+class AchievementTests(BaseTestCase):
+    def test_first_badge_unlocked_with_achieved_date(self):
+        data = achievements.collect(self.alice)
+        first = next(item for item in data["badges"] if item.key == "first_entry")
+        self.assertTrue(first.unlocked)
+        self.assertIsNotNone(first.achieved_at)
+        self.assertEqual(first.progress, 100)
+
+    def test_locked_badge_reports_progress(self):
+        data = achievements.collect(self.alice)
+        ten = next(item for item in data["badges"] if item.key == "entries_10")
+        self.assertFalse(ten.unlocked)
+        self.assertEqual(ten.current, 1)
+        self.assertEqual(ten.progress, 10)
+
+    def test_unlocked_sorted_first(self):
+        data = achievements.collect(self.alice)
+        keys = [item.key for item in data["badges"]]
+        unlocked_flags = [item.unlocked for item in data["badges"]]
+        # 已解锁的一定排在未解锁之前
+        self.assertEqual(unlocked_flags, sorted(unlocked_flags, reverse=True))
+        self.assertIn("first_entry", keys)
+
+    def test_achievements_page(self):
+        response = self.client.get(reverse("learning_logs:achievements"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "学习成就")
+
+
+class ShareTests(BaseTestCase):
+    def test_toggle_share_creates_and_revokes(self):
+        url = reverse("learning_logs:toggle_share", args=[self.topic.id])
+        self.client.post(url)
+        self.topic.refresh_from_db()
+        token = self.topic.share_token
+        self.assertTrue(token)
+        self.assertIsNotNone(self.topic.shared_at)
+
+        self.client.post(url)
+        self.topic.refresh_from_db()
+        self.assertEqual(self.topic.share_token, "")
+        self.assertIsNone(self.topic.shared_at)
+
+    def test_toggle_requires_post(self):
+        url = reverse("learning_logs:toggle_share", args=[self.topic.id])
+        self.assertEqual(self.client.get(url).status_code, 405)
+
+    def test_other_user_cannot_toggle(self):
+        self.client.force_login(self.bob)
+        response = self.client.post(reverse("learning_logs:toggle_share", args=[self.topic.id]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_public_page_works_without_login(self):
+        self.topic.share_token = "public-token-for-test"
+        self.topic.save(update_fields=["share_token"])
+        anonymous = Client()
+        response = anonymous.get(reverse("learning_logs:shared_topic", args=[self.topic.share_token]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Django ORM")
+        self.assertContains(response, "只读分享")
+
+    def test_revoked_link_returns_404(self):
+        self.topic.share_token = "temp-token"
+        self.topic.save(update_fields=["share_token"])
+        url = reverse("learning_logs:shared_topic", args=["temp-token"])
+        self.assertEqual(Client().get(url).status_code, 200)
+
+        self.topic.share_token = ""
+        self.topic.save(update_fields=["share_token"])
+        self.assertEqual(Client().get(url).status_code, 404)
+
+
+class PWATests(TestCase):
+    def test_manifest(self):
+        response = self.client.get(reverse("manifest"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("application/manifest+json", response["Content-Type"])
+        self.assertIn("知迹", response.content.decode())
+
+    def test_service_worker_scope_header(self):
+        response = self.client.get(reverse("service_worker"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Service-Worker-Allowed"], "/")
+
+    def test_offline_page(self):
+        response = self.client.get(reverse("offline"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "没有网络")

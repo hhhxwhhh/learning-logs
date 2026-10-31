@@ -11,6 +11,7 @@
     <p>每一条笔记都会长成一片叶子；主题越多，树冠越宽。</p>
   </div>
   <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:achievements' %}">成就</a>
     <span class="badge badge--accent">{{ stage.name }}</span>
     <a class="btn" href="{% url 'learning_logs:new_topic' %}">
       <svg width="16" height="16"><use href="#i-plus" /></svg>种一棵新树

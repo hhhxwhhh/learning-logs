@@ -1093,6 +1093,16 @@
     border-left: 3px solid var(--amber);
   }
 
+  .inline-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .inline-check svg {
+    color: var(--teal);
+  }
+
   .toast__close {
     margin-left: auto;
     color: var(--muted);
@@ -1783,6 +1793,72 @@
     --btn-bg: #fff;
     --btn-ink: #1f1f2e;
     --btn-border: transparent;
+  }
+
+  /* 成就徽章 ------------------------------------------------------------- */
+  .badge-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  }
+
+  .badge-card {
+    display: flex;
+    gap: 0.9rem;
+    padding: 1.1rem;
+    border-radius: var(--radius);
+    border: 1px dashed var(--line-strong);
+    background: color-mix(in oklab, var(--surface) 70%, transparent);
+    transition: var(--transition);
+  }
+
+  .badge-card.is-unlocked {
+    border-style: solid;
+    border-color: color-mix(in oklab, var(--accent) 28%, var(--line));
+    background: linear-gradient(
+      160deg,
+      color-mix(in oklab, var(--accent) 8%, var(--surface)),
+      var(--surface)
+    );
+    box-shadow: var(--shadow-sm);
+  }
+
+  .badge-card.is-unlocked:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .badge-card__icon {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    background: color-mix(in oklab, var(--ink) 7%, transparent);
+    color: var(--muted);
+  }
+
+  .badge-card.is-unlocked .badge-card__icon {
+    background: var(--gradient-brand);
+    color: #fff;
+    box-shadow: 0 8px 18px -10px color-mix(in oklab, var(--accent) 80%, transparent);
+  }
+
+  .badge-card__body {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .badge-card__body h3 {
+    font-size: 0.95rem;
+  }
+
+  .badge-card.is-unlocked h3 {
+    color: var(--ink);
   }
 
   /* 学习花园 · 知识树 ---------------------------------------------------- */

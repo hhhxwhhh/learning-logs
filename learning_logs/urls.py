@@ -38,6 +38,11 @@ urlpatterns = [
     path("steps/<int:step_id>/", views.step_detail, name="step_detail"),
     path("steps/<int:step_id>/toggle-completion/", views.toggle_step_completion, name="toggle_step_completion"),
     path("resources/<int:resource_id>/toggle-completion/", views.toggle_resource_completion, name="toggle_resource_completion"),
+    # 只读分享
+    path("topic/<int:topic_id>/share/", views.toggle_share, name="toggle_share"),
+    path("s/<str:token>/", views.shared_topic, name="shared_topic"),
+    # 学习成就
+    path("achievements/", views.achievements, name="achievements"),
     # 学习周报
     path("weekly/", views.weekly_report, name="weekly_report"),
     path("weekly/generate/", views.weekly_report_generate, name="weekly_generate"),

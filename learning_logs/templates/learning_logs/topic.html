@@ -151,6 +151,35 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card__head"><h3>分享这个主题</h3></div>
+      <div class="card__body stack-sm">
+        {% if topic.share_token %}
+        <input
+          class="input"
+          id="share-link"
+          readonly
+          value="{{ request.scheme }}://{{ request.get_host }}{% url 'learning_logs:shared_topic' topic.share_token %}"
+          style="font-size: 0.78rem"
+        />
+        <div class="cluster">
+          <button class="btn btn--sm" type="button" data-copy="#share-link">复制链接</button>
+          <form method="post" action="{% url 'learning_logs:toggle_share' topic.id %}">
+            {% csrf_token %}
+            <button class="btn btn--sm btn--danger" type="submit">关闭分享</button>
+          </form>
+        </div>
+        <p class="hint">拿到链接的人可以只读查看，看不到其他主题与个人信息。</p>
+        {% else %}
+        <p class="small muted">生成一个只读链接，方便把笔记发给同学或老师。</p>
+        <form method="post" action="{% url 'learning_logs:toggle_share' topic.id %}">
+          {% csrf_token %}
+          <button class="btn btn--sm" type="submit">生成分享链接</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
     <div class="panel small muted">
       <strong class="strong" style="display:block; margin-bottom:0.3rem">Markdown 小贴士</strong>
       用 <code>##</code> 分节、<code>-</code> 列要点、反引号包代码，笔记会自动排版。代码块可以直接复制。

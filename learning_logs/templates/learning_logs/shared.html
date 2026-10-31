@@ -1,0 +1,57 @@
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
+
+{% block title %}{{ topic.text }} · 只读分享{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">只读分享 · {{ entry_count }} 条记录</div>
+    <h1>{{ topic.text }}</h1>
+    <div class="cluster small muted mt-1">
+      <span>更新于 {{ topic.date_added|date:"Y-m-d" }}</span>
+      <span>·</span>
+      <span>完成度 {{ topic.progress_percentage }}%</span>
+    </div>
+  </div>
+  <span class="badge badge--outline">只读视图</span>
+</div>
+
+<div class="progress mb-3">
+  <div class="progress__bar" style="width: {{ topic.progress_percentage }}%"></div>
+</div>
+
+<div class="stack">
+  {% for entry in entries %}
+  <article class="card">
+    <div class="card__head">
+      <div class="cluster small">
+        <span class="badge {% if entry.completed %}badge--teal{% else %}badge--outline{% endif %}">
+          {% if entry.completed %}已掌握{% else %}进行中{% endif %}
+        </span>
+        <span class="muted">{{ entry.date_added|date:"Y-m-d H:i" }}</span>
+      </div>
+    </div>
+    <div class="card__body">
+      <div class="prose">{{ entry.text|markdown }}</div>
+    </div>
+  </article>
+  {% empty %}
+  <div class="card">
+    <div class="empty">
+      <div class="empty__icon"><svg><use href="#i-doc" /></svg></div>
+      <h3>这个主题还没有公开的内容</h3>
+      <p>等作者写下第一条笔记后，这里就会有内容了。</p>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<section class="cta mt-4">
+  <div>
+    <h2>想拥有自己的学习知识树？</h2>
+    <p>知迹把笔记、路径、复习与 AI 复盘放进同一个地方。</p>
+  </div>
+  <a class="btn btn--lg" href="{% url 'learning_logs:index' %}">了解知迹</a>
+</section>
+{% endblock %}

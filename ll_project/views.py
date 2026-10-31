@@ -1,7 +1,11 @@
-"""项目级运维视图：健康检查。"""
+"""项目级视图：健康检查、Service Worker、manifest 与离线页。"""
 
+from pathlib import Path
+
+from django.contrib.staticfiles import finders
 from django.db import connection
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
+from django.shortcuts import render
 
 
 def healthz(request):
@@ -18,3 +22,34 @@ def healthz(request):
         "database": "up" if database_ok else "down",
     }
     return JsonResponse(payload, status=200 if database_ok else 503)
+
+
+def service_worker(request):
+    """从根路径提供 Service Worker，以便控制整个站点作用域。"""
+    path = finders.find("js/sw.js")
+    if not path:
+        raise Http404("Service Worker 不存在")
+
+    response = HttpResponse(
+        Path(path).read_text(encoding="utf-8"),
+        content_type="application/javascript; charset=utf-8",
+    )
+    response["Service-Worker-Allowed"] = "/"
+    response["Cache-Control"] = "no-cache"
+    return response
+
+
+def manifest(request):
+    """返回 PWA manifest，避免静态目录层级影响 scope。"""
+    path = finders.find("manifest.webmanifest")
+    if not path:
+        raise Http404("manifest 不存在")
+    return HttpResponse(
+        Path(path).read_text(encoding="utf-8"),
+        content_type="application/manifest+json; charset=utf-8",
+    )
+
+
+def offline(request):
+    """Service Worker 在断网时回退到的页面。"""
+    return render(request, "offline.html")
