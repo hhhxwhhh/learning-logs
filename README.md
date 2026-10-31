@@ -15,6 +15,10 @@ Django 服务端渲染，零前端框架依赖，可完全离线运行，也可�
 | 学习分析 | 热力图、12 周投入、时段分布、主题投入排行、自动洞察 |
 | 闪卡复习 | SM-2 间隔重复算法，AI 一键从笔记生成卡片，支持键盘评分 |
 | 学习目标 | 截止日期、剩余天数、逾期提醒 |
+| 学习花园 | SVG 知识树、成长阶段（种子→森林）、今日回顾 |
+| 学习周报 | 本周/上周数据对比，AI 三段式复盘，无模型时给规则建议 |
+| 全局搜索 | ⌘K 命令面板，主题/笔记/功能页混合检索，关键词高亮 |
+| 数据导出 | Markdown ZIP、Anki CSV、JSON 完整备份，支持 Markdown 导入 |
 
 ## 技术栈
 
@@ -86,6 +90,10 @@ ll_project/            项目配置（settings 全部来自环境变量）、健
 learning_logs/         主题、笔记、路径、计时、闪卡、统计服务
   ai/                  Provider 抽象、提示词、流式编排、AI 视图
   services/stats.py    热力图 / 连续天数 / 时段分布等统计口径
+  services/search.py   多关键词检索、相关度排序与高亮片段
+  services/garden.py   知识树几何计算、成长阶段、今日回顾
+  services/report.py   学习周报统计与 AI 复盘生成
+  services/export.py   Markdown / CSV / JSON 导出与 Markdown 导入
   templatetags/        Markdown、时长格式化过滤器
 accounts/              自定义用户、注册登录、个人中心
 analytics/             学习分析（总览 / 时间统计 / 进度报告 / 主题分析）
