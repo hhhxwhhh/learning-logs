@@ -1,14 +1,36 @@
-{% extends "learning_logs/base.html" %} {% block content %}
-<div class="container">
-  <div class="card shadow-sm mx-auto mt-4" style="max-width: 600px">
-    <div class="card-body">
-      <h5 class="card-title text-center mb-4">Add a New Topic</h5>
-      <form action="{% url 'learning_logs:new_topic' %}" method="post">
-        {% csrf_token %}
-        <div class="mb-3">{{ form.as_p }}</div>
-        <button type="submit" class="btn btn-primary w-100">Add Topic</button>
-      </form>
+{% extends "learning_logs/base.html" %}
+
+{% block title %}新建主题 · 知迹{% endblock %}
+
+{% block content %}
+<div style="max-width: 560px; margin-inline: auto">
+  <nav class="cluster small muted mb-2">
+    <a href="{% url 'learning_logs:topics' %}">主题</a>
+    <span>/</span>
+    <span>新建</span>
+  </nav>
+
+  <div class="page-head">
+    <div>
+      <div class="page-head__eyebrow">New topic</div>
+      <h1>新建学习主题</h1>
+      <p>主题宜小不宜大：「Django ORM」比「后端开发」更容易持续记录。</p>
     </div>
   </div>
+
+  <form method="post" class="card">
+    <div class="card__body stack">
+      {% csrf_token %}
+      {% include "partials/field.html" with field=form.text %}
+      <div class="form-actions">
+        <button class="btn btn--primary" type="submit">创建主题</button>
+        <a class="btn btn--ghost" href="{% url 'learning_logs:topics' %}">取消</a>
+      </div>
+    </div>
+  </form>
+
+  <div class="panel small muted mt-2">
+    创建后可以：写学习记录、开始计时、让 AI 基于笔记生成摘要与自测题。
+  </div>
 </div>
-{% endblock content %}
+{% endblock %}

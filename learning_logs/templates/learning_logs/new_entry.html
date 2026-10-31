@@ -1,32 +1,62 @@
-<!-- filepath: f:\web_python\ll_project\learning_logs\templates\learning_logs\new_entry.html -->
-{% extends "learning_logs/base.html" %} {% block content %}
-<div class="container">
-  <div class="card shadow-sm mx-auto mt-4" style="max-width: 600px">
-    <div class="card-body">
-      <h5 class="card-title text-center mb-4">Add a New Entry</h5>
-      <p class="text-center">
-        <a
-          href="{% url 'learning_logs:topic' topic.id %}"
-          class="text-decoration-none"
-        >
-          Back to Topic: <strong>{{ topic }}</strong>
-        </a>
-      </p>
-      <form action="{% url 'learning_logs:new_entry' topic.id %}" method="post">
-        {% csrf_token %}
-        <div class="mb-3">
-          <label for="id_text" class="form-label">Entry Text</label>
-          <textarea
-            name="text"
-            id="id_text"
-            class="form-control"
-            rows="8"
-            placeholder="Write your entry here..."
-          ></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary w-100">Add Entry</button>
-      </form>
-    </div>
+{% extends "learning_logs/base.html" %}
+
+{% block title %}写记录 · {{ topic.text }}{% endblock %}
+
+{% block content %}
+<nav class="cluster small muted mb-2">
+  <a href="{% url 'learning_logs:topics' %}">主题</a>
+  <span>/</span>
+  <a href="{% url 'learning_logs:topic' topic.id %}">{{ topic.text }}</a>
+  <span>/</span>
+  <span>新记录</span>
+</nav>
+
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">New entry</div>
+    <h1>记录今天的学习</h1>
+    <p>写清楚「学到什么、卡在哪、下一步」，比长篇总结更有用。</p>
   </div>
 </div>
-{% endblock content %}
+
+<form method="post">
+  {% csrf_token %}
+  <div class="split">
+    <div class="card">
+      <div class="card__body stack">
+        {% include "partials/field.html" with field=form.text %}
+
+        <label class="row small" style="cursor: pointer">
+          {{ form.completed }}
+          <span>这条记录已经掌握（标记完成）</span>
+        </label>
+        {{ form.completed.errors }}
+
+        <div class="form-actions">
+          <button class="btn btn--primary" type="submit">保存记录</button>
+          <a class="btn btn--ghost" href="{% url 'learning_logs:topic' topic.id %}">取消</a>
+        </div>
+      </div>
+    </div>
+
+    <aside class="stack">
+      <div class="panel small">
+        <strong class="strong" style="display:block; margin-bottom:0.4rem">写作模板</strong>
+        <pre style="white-space: pre-wrap; font-size: 0.78rem; line-height: 1.7; margin: 0">## 今天学了什么
+- 关键概念：
+- 代码示例：
+
+## 卡住的地方
+- 
+
+## 下一步
+- </pre>
+      </div>
+      <div class="panel small muted">
+        支持 Markdown：<code>## 标题</code>、<code>**加粗**</code>、
+        <code>`代码`</code>、表格与待办清单。
+      </div>
+    </aside>
+  </div>
+</form>
+{% endblock %}

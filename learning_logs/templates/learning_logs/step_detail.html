@@ -1,0 +1,80 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}{{ step.topic.text }} · 路径步骤{% endblock %}
+
+{% block content %}
+<nav class="cluster small muted mb-2">
+  <a href="{% url 'learning_logs:learning_paths' %}">学习路径</a>
+  <span>/</span>
+  <a href="{% url 'learning_logs:learning_path_detail' step.path.id %}">{{ step.path.title }}</a>
+  <span>/</span>
+  <span>Step {{ step.order }}</span>
+</nav>
+
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Step {{ step.order }} · 预计 {{ step.estimated_hours }} 小时</div>
+    <h1>{{ step.topic.text }}</h1>
+    {% if step.description %}<p>{{ step.description }}</p>{% endif %}
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:topic' step.topic.id %}">打开主题笔记</a>
+    <form method="post" action="{% url 'learning_logs:toggle_step_completion' step.id %}">
+      {% csrf_token %}
+      <button class="btn {% if step.is_completed %}btn--soft{% else %}btn--primary{% endif %}" type="submit">
+        {% if step.is_completed %}标记为未完成{% else %}完成这一步{% endif %}
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>学习资源（{{ resources|length }}）</h3>
+        <span class="tiny muted">书、视频、文章、练习都可以挂在这里</span>
+      </div>
+      {% if resources %}
+      <div class="list">
+        {% for resource in resources %}
+        <div class="list__item">
+          <span class="badge badge--outline">{{ resource.get_resource_type_display }}</span>
+          <div class="list__main">
+            {% if resource.url %}
+            <a class="list__title" href="{{ resource.url }}" target="_blank" rel="noopener noreferrer">
+              {{ resource.title }}
+            </a>
+            {% else %}
+            <span class="list__title">{{ resource.title }}</span>
+            {% endif %}
+            {% if resource.notes %}<span class="list__meta">{{ resource.notes }}</span>{% endif %}
+          </div>
+          <form method="post" action="{% url 'learning_logs:toggle_resource_completion' resource.id %}">
+            {% csrf_token %}
+            <button class="btn btn--sm {% if resource.is_completed %}btn--soft{% else %}btn--ghost{% endif %}" type="submit">
+              {% if resource.is_completed %}已完成{% else %}标记完成{% endif %}
+            </button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card__body muted small">还没有资源，添加一个开始吧。</div>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside class="card">
+    <div class="card__head"><h3>添加资源</h3></div>
+    <form method="post" class="card__body stack">
+      {% csrf_token %}
+      {% include "partials/field.html" with field=resource_form.title %}
+      {% include "partials/field.html" with field=resource_form.url %}
+      {% include "partials/field.html" with field=resource_form.resource_type %}
+      {% include "partials/field.html" with field=resource_form.notes %}
+      <button class="btn btn--primary" type="submit">添加资源</button>
+    </form>
+  </aside>
+</div>
+{% endblock %}

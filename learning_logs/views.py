@@ -7,6 +7,7 @@ from django.db.models import Count, Sum
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .forms import (
     AIFeatureForm,
@@ -28,6 +29,7 @@ from .models import (
     StudySession,
     Topic,
 )
+from .services import stats
 from .utils.markdown import render_markdown
 from .utils.ollama_client import OllamaClient
 
@@ -124,6 +126,7 @@ def edit_entry(request,entry_id):
     return render(request,'learning_logs/edit_entry.html',context)
 
 @login_required
+@require_POST
 def delete_entry(request, entry_id):
     entry = get_object_or_404(Entry, id=entry_id, topic__owner=request.user)
     topic = entry.topic
@@ -168,6 +171,7 @@ def entry_comments(request, entry_id):
     return render(request, 'learning_logs/entry_comments.html', context)
 
 @login_required
+@require_POST
 def delete_topic(request, topic_id):
     """删除指定的主题"""
     topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
@@ -178,90 +182,59 @@ def delete_topic(request, topic_id):
 
 @login_required
 def dashboard(request):
-    """显示用户的学习仪表盘"""
-    # 获取用户的话题和条目统计
-    topics = Topic.objects.filter(owner=request.user)
-    topic_count = topics.count()
-    entry_count = Entry.objects.filter(topic__in=topics).count()
-    
-    # 获取最近活动
-    recent_entries = Entry.objects.filter(
-        topic__in=topics
-    ).order_by('-date_added')[:5]
-    # 计算总学习时间
-    total_study_time=StudySession.objects.filter(
-        user=request.user
-    ).aggregate(total=Sum('duration'))['total'] or timedelta(0)
-    #计算学习的小时和分钟
-    total_study_time=total_study_time.total_seconds()
-    total_hours=total_study_time//3600
-    total_minutes=(total_study_time%3600)//60
-    
-    # 获取学习目标
-    goals=LearningGoal.objects.filter(
-        user=request.user,
-        completed=False,
-        target_date__gte=timezone.now().date()
-    ).order_by('target_date')[:3]
-    
-    
-    # 话题完成进度数据
-    topics_progress = topics.annotate(
-        entry_count=Count('entry')
-    ).order_by('-date_added')[:5]
-    
-    # 计算推荐话题（基于用户最常学习的话题）
-    popular_topics = topics.annotate(
-        session_count=Count('study_sessions')
-    ).order_by('-session_count')[:3]
-    
-    if not popular_topics:
-        popular_topics = topics.order_by('-date_added')[:3]
-    
-    # 添加学习路径数据
-    learning_paths = LearningPath.objects.filter(
-        user=request.user
-    ).order_by('-updated_at')[:3]
-    
+    """学习仪表盘：指标、热力图、趋势与待办。"""
+    overview = stats.overview(request.user)
+
+    weekly = stats.weekly_series(request.user, weeks=8)
+    peak = max([day["minutes"] for day in weekly] + [1])
+    for day in weekly:
+        day["pct"] = max(4, round(day["minutes"] / peak * 100)) if day["minutes"] else 4
+
     context = {
-        'topic_count': topic_count,
-        'entry_count': entry_count,
-        'recent_entries': recent_entries,
-        'total_study_time': total_study_time,
-        'total_hours': total_hours,
-        'total_minutes': total_minutes,
-        'goals': goals,
-        'topics_progress': topics_progress,
-        'popular_topics': popular_topics,
-        'learning_paths': learning_paths,
+        "overview": overview,
+        "heatmap": stats.heatmap_weeks(request.user),
+        "weekly": weekly,
+        "topic_ranking": stats.topic_ranking(request.user),
+        "recent_entries": Entry.objects.filter(topic__owner=request.user)
+        .select_related("topic")
+        .order_by("-date_added")[:5],
+        "goals": stats.upcoming_goals(request.user),
+        "paths": LearningPath.objects.filter(user=request.user).order_by("-updated_at")[:3],
+        "format_minutes": stats.format_minutes,
     }
-    
-    return render(request, 'learning_logs/dashboard.html', context)
+    return render(request, "learning_logs/dashboard.html", context)
+
 
 @login_required
 def goals(request):
     """管理学习目标"""
-    if request.method == 'POST':
-        # 处理目标添加
-        title = request.POST.get('title')
-        description = request.POST.get('description')
-        target_date = request.POST.get('target_date')
-        
-        if title and target_date:
+    if request.method == "POST":
+        title = (request.POST.get("title") or "").strip()
+        description = (request.POST.get("description") or "").strip()
+        target_date = stats.parse_date(request.POST.get("target_date", ""))
+
+        if not title:
+            messages.error(request, "目标名称不能为空。")
+        elif target_date is None:
+            messages.error(request, "请选择合法的截止日期。")
+        else:
             LearningGoal.objects.create(
                 user=request.user,
                 title=title,
                 description=description,
-                target_date=target_date
+                target_date=target_date,
             )
-    
-    # 获取所有目标
-    goals = LearningGoal.objects.filter(user=request.user).order_by('target_date')
-    
-    context = {'goals': goals}
-    return render(request, 'learning_logs/goals.html', context)
+            messages.success(request, "目标已添加，记得给它留出时间。")
+            return redirect("learning_logs:goals")
+
+    return render(
+        request,
+        "learning_logs/goals.html",
+        {"goals": LearningGoal.objects.filter(user=request.user).order_by("completed", "target_date")},
+    )
 
 @login_required
+@require_POST
 def toggle_goal(request, goal_id):
     """切换目标完成状态"""
     goal = get_object_or_404(LearningGoal, id=goal_id, user=request.user)
@@ -270,6 +243,7 @@ def toggle_goal(request, goal_id):
     return redirect('learning_logs:goals')
 
 @login_required
+@require_POST
 def start_session(request, topic_id):
     """开始一个学习会话"""
     topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
@@ -286,6 +260,7 @@ def start_session(request, topic_id):
     return redirect('learning_logs:topic', topic_id=topic.id)
 
 @login_required
+@require_POST
 def end_session(request):
     """结束当前学习会话"""
     session_id = request.session.get('active_session_id')
@@ -302,11 +277,6 @@ def end_session(request):
             messages.error(request, "找不到活动的学习会话")
     
     return redirect('learning_logs:dashboard')
-
-def check_topic_owner(topic, user):
-    """检查主题是否属于当前用户"""
-    if topic.owner != user:
-        raise Http404("您没有权限访问该话题")
 
 @login_required
 def learning_paths(request):
@@ -382,6 +352,7 @@ def learning_path_detail(request, path_id):
     return render(request, 'learning_logs/learning_path_detail.html', context)
 
 @login_required
+@require_POST
 def toggle_step_completion(request, step_id):
     """切换步骤的完成状态"""
     step = get_object_or_404(PathStep, id=step_id)
@@ -427,6 +398,7 @@ def step_detail(request, step_id):
     return render(request, 'learning_logs/step_detail.html', context)
 
 @login_required
+@require_POST
 def toggle_resource_completion(request, resource_id):
     """切换资源的完成状态"""
     resource = get_object_or_404(StepResource, id=resource_id)
@@ -441,6 +413,7 @@ def toggle_resource_completion(request, resource_id):
     return redirect('learning_logs:step_detail', step_id=resource.step.id)
 
 @login_required
+@require_POST
 def delete_learning_path(request, path_id):
     """删除学习路径"""
     path = get_object_or_404(LearningPath, id=path_id, user=request.user)

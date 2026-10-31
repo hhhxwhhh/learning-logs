@@ -1,54 +1,76 @@
-<!-- filepath: f:\web_python\ll_project\learning_logs\templates\learning_logs\topics.html -->
-{% extends "learning_logs/base.html" %} {% block page_header %}
-<div class="p-4 mb-4 bg-light border rounded-3 shadow-sm">
-  <h1 class="display-5 text-center text-primary">Topics</h1>
+{% extends "learning_logs/base.html" %}
+{% load humanize %}
+
+{% block title %}我的主题 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Topics</div>
+    <h1>我的学习主题</h1>
+    <p>每个主题是一块知识领域，条目是这块领域里的具体收获。</p>
+  </div>
+  <a class="btn btn--primary" href="{% url 'learning_logs:new_topic' %}">
+    <svg width="16" height="16"><use href="#i-plus" /></svg>新建主题
+  </a>
 </div>
-{% endblock page_header %} {% block content %}
-<div class="container">
-  <ul class="list-group mb-4">
-    {% for topic in topics %}
-    <li
-      class="list-group-item d-flex justify-content-between align-items-center"
-    >
-      <a
-        href="{% url 'learning_logs:topic' topic.id %}"
-        class="text-decoration-none fw-bold"
-      >
-        {{ topic.text }}
-      </a>
-      <div>
+
+{% if topics %}
+<div class="grid">
+  {% for topic in topics %}
+  <article class="card card--hover">
+    <div class="card__body stack">
+      <div class="between">
+        <a class="strong" href="{% url 'learning_logs:topic' topic.id %}">{{ topic.text }}</a>
+        <span class="badge {% if topic.progress_percentage == 100 %}badge--teal{% else %}badge--accent{% endif %}">
+          {{ topic.progress_percentage }}%
+        </span>
+      </div>
+
+      <div class="progress">
+        <div class="progress__bar" style="width: {{ topic.progress_percentage }}%"></div>
+      </div>
+
+      <div class="cluster small muted">
+        <span>{{ topic.total_items }} 条记录</span>
+        <span>·</span>
+        <span>{{ topic.completed_items }} 条已完成</span>
+        <span>·</span>
+        <span>{{ topic.date_added|naturaltime }}创建</span>
+      </div>
+
+      <div class="cluster">
+        <a class="btn btn--sm" href="{% url 'learning_logs:topic' topic.id %}">查看</a>
+        <a class="btn btn--sm btn--soft" href="{% url 'learning_logs:new_entry' topic.id %}">
+          <svg width="14" height="14"><use href="#i-plus" /></svg>记录
+        </a>
+        <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:ai_assistant' topic.id %}">
+          <svg width="14" height="14"><use href="#i-spark" /></svg>AI
+        </a>
         <form
           method="post"
           action="{% url 'learning_logs:delete_topic' topic.id %}"
-          class="d-inline"
+          data-confirm="删除主题「{{ topic.text }}」会同时删除它的所有记录，确定吗？"
+          style="margin-left: auto"
         >
           {% csrf_token %}
-          <button
-            type="submit"
-            class="btn btn-sm btn-danger"
-            onclick="return confirm('确定要删除这个主题吗？');"
-          >
-            delete
+          <button class="btn btn--sm btn--danger" type="submit" aria-label="删除主题">
+            <svg width="14" height="14"><use href="#i-trash" /></svg>
           </button>
         </form>
-        <a
-          href="{% url 'learning_logs:topic' topic.id %}"
-          class="btn btn-sm btn-primary"
-        >
-          view
-        </a>
       </div>
-    </li>
-    {% empty %}
-    <li class="list-group-item text-center text-muted">
-      No topics have been added yet.
-    </li>
-    {% endfor %}
-  </ul>
-  <div class="text-center">
-    <a href="{% url 'learning_logs:new_topic' %}" class="btn btn-success">
-      Add a New Topic
-    </a>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="empty">
+    <div class="empty__icon"><svg><use href="#i-layers" /></svg></div>
+    <h3>还没有主题</h3>
+    <p>先想一个最近在学的东西：一门语言、一个框架、一本书，甚至是一个正在推进的项目。</p>
+    <a class="btn btn--primary" href="{% url 'learning_logs:new_topic' %}">创建第一个主题</a>
   </div>
 </div>
-{% endblock content %}
+{% endif %}
+{% endblock %}

@@ -1,42 +1,48 @@
-<!-- filepath: f:\web_python\ll_project\accounts\templates\accounts\login.html -->
-{% extends "learning_logs/base.html" %} {% block page_header %}
-<div class="p-4 mb-4 bg-light border rounded-3">
-  <h1 class="display-5 text-center">Log In</h1>
+{% extends "accounts/_auth_base.html" %}
+
+{% block title %}登录 · 知迹{% endblock %}
+
+{% block auth_content %}
+<h1 style="font-size: 1.7rem">欢迎回来</h1>
+<p class="muted small mt-1 mb-3">继续记录你的学习。</p>
+
+{% if error %}
+<div class="toast toast--error mb-2" style="position: static">
+  <div>{{ error }}</div>
 </div>
-{% endblock page_header %} {% block content %}
-<div class="card shadow-sm mx-auto" style="max-width: 400px">
-  <div class="card-body">
-    <h5 class="card-title text-center mb-4">Welcome Back</h5>
-    <form method="post">
-      {% csrf_token %}
-      <div class="mb-3">
-        <label for="id_username" class="form-label">Username</label>
-        <input
-          type="text"
-          name="username"
-          id="id_username"
-          class="form-control"
-          required
-        />
-      </div>
-      <div class="mb-3">
-        <label for="id_password" class="form-label">Password</label>
-        <input
-          type="password"
-          name="password"
-          id="id_password"
-          class="form-control"
-          required
-        />
-      </div>
-      <button type="submit" class="btn btn-primary w-100">Log In</button>
-    </form>
-    <div class="text-center mt-3">
-      <p class="text-muted">
-        Don't have an account?
-        <a href="{% url 'accounts:register' %}">Register</a>
-      </p>
-    </div>
+{% endif %}
+
+<form method="post" class="stack">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}" />
+  <div class="field">
+    <label class="label" for="username">用户名</label>
+    <input
+      class="input"
+      id="username"
+      name="username"
+      autocomplete="username"
+      required
+      autofocus
+      placeholder="你的用户名"
+    />
   </div>
-</div>
-{% endblock content %}
+  <div class="field">
+    <label class="label" for="password">密码</label>
+    <input
+      class="input"
+      id="password"
+      type="password"
+      name="password"
+      autocomplete="current-password"
+      required
+      placeholder="••••••••"
+    />
+  </div>
+  <button class="btn btn--primary btn--lg btn--block" type="submit">登录</button>
+</form>
+
+<p class="small muted mt-3 center">
+  还没有账号？<a href="{% url 'accounts:register' %}" class="strong">免费注册</a>
+</p>
+{% endblock %}

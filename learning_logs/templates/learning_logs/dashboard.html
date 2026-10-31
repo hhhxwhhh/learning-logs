@@ -1,515 +1,201 @@
-<!-- learning_logs/templates/learning_logs/dashboard.html -->
-{% extends "learning_logs/base.html" %} {% block extra_css %}
-<style>
-  /* 主题色变量 */
-  :root {
-    --primary-color: #4e73df;
-    --secondary-color: #1cc88a;
-    --accent-color: #36b9cc;
-    --warning-color: #f6c23e;
-    --danger-color: #e74a3b;
-    --light-bg: #f8f9fc;
-  }
+{% extends "learning_logs/base.html" %}
+{% load humanize ll_extras %}
 
-  /* 卡片阴影和过渡效果 */
-  .dashboard-card {
-    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: none;
-    border-radius: 0.5rem;
-    overflow: hidden;
-  }
+{% block title %}仪表盘 · 知迹{% endblock %}
 
-  .dashboard-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 0.5rem 2rem 0 rgba(58, 59, 69, 0.15);
-  }
-
-  /* 卡片标题样式 */
-  .card-header {
-    background-color: white;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    padding: 0.75rem 1.25rem;
-  }
-
-  /* 统计卡片样式 */
-  .stat-card {
-    color: white;
-    border-left: 0.25rem solid;
-    border-radius: 0.5rem;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .stat-card.topics-card {
-    background: linear-gradient(135deg, var(--primary-color) 0%, #224abe 100%);
-    border-left-color: #224abe;
-  }
-
-  .stat-card.entries-card {
-    background: linear-gradient(
-      135deg,
-      var(--secondary-color) 0%,
-      #169a6b 100%
-    );
-    border-left-color: #169a6b;
-  }
-
-  .stat-card.time-card {
-    background: linear-gradient(135deg, var(--accent-color) 0%, #258391 100%);
-    border-left-color: #258391;
-  }
-
-  .stat-card .stat-icon {
-    position: absolute;
-    right: 1rem;
-    bottom: 0;
-    opacity: 0.15;
-    font-size: 4rem;
-    line-height: 1;
-  }
-
-  /* 进度条样式 */
-  .progress {
-    height: 0.6rem;
-    border-radius: 1rem;
-    background-color: rgba(0, 0, 0, 0.05);
-    overflow: hidden;
-  }
-
-  .progress-bar {
-    background: linear-gradient(90deg, var(--secondary-color) 0%, #169a6b 100%);
-    border-radius: 1rem;
-    transition: width 1s ease-in-out;
-  }
-
-  /* 目标项样式 */
-  .goal-item {
-    border-left: 4px solid var(--warning-color);
-    background-color: rgba(246, 194, 62, 0.05);
-    transition: all 0.2s ease;
-  }
-
-  .goal-item:hover {
-    background-color: rgba(246, 194, 62, 0.1);
-  }
-
-  .goal-item.completed {
-    border-left-color: var(--secondary-color);
-    background-color: rgba(28, 200, 138, 0.05);
-  }
-
-  .goal-item.completed:hover {
-    background-color: rgba(28, 200, 138, 0.1);
-  }
-
-  /* 活动列表样式 */
-  .activity-item {
-    border-left: 4px solid transparent;
-    transition: all 0.2s ease;
-  }
-
-  .activity-item:hover {
-    border-left-color: var(--primary-color);
-    background-color: rgba(78, 115, 223, 0.05);
-  }
-
-  /* 按钮样式 */
-  .btn-primary {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
-  }
-
-  .btn-outline-primary {
-    color: var(--primary-color);
-    border-color: var(--primary-color);
-  }
-
-  .btn-success {
-    background-color: var(--secondary-color);
-    border-color: var (--secondary-color);
-  }
-
-  .btn-outline-success {
-    color: var(--secondary-color);
-    border-color: var(--secondary-color);
-  }
-</style>
-{% endblock %} {% block page_header %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+{% block content %}
+<div class="page-head">
   <div>
-    <h1 class="display-5 fw-bold text-primary m-0">Learning Dashboard</h1>
-    <p class="text-muted">Welcome back, {{ request.user.username }}!</p>
+    <div class="page-head__eyebrow">{% now "Y年n月j日" %}</div>
+    <h1>你好，{{ user.username }}</h1>
+    <p>记录不是为了记住每一句话，而是为了看见自己在往前走。</p>
   </div>
-  <a
-    href="{% url 'learning_logs:goals' %}"
-    class="btn btn-primary rounded-pill px-4 shadow-sm"
-  >
-    <i class="fas fa-flag me-2"></i>Manage Goals
-  </a>
-</div>
-{% endblock %} {% block content %}
-<div class="row mb-4 g-3">
-  <!-- 统计卡片 -->
-  <div class="col-md-4">
-    <div class="dashboard-card stat-card topics-card h-100">
-      <div class="card-body">
-        <div class="row">
-          <div class="col">
-            <h6 class="text-white-50 text-uppercase mb-1 small fw-bold">
-              Topics
-            </h6>
-            <h2 class="display-4 fw-bold mb-0">{{ topic_count }}</h2>
-          </div>
-        </div>
-        <i class="fas fa-book stat-icon"></i>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-4">
-    <div class="dashboard-card stat-card entries-card h-100">
-      <div class="card-body">
-        <div class="row">
-          <div class="col">
-            <h6 class="text-white-50 text-uppercase mb-1 small fw-bold">
-              Entries
-            </h6>
-            <h2 class="display-4 fw-bold mb-0">{{ entry_count }}</h2>
-          </div>
-        </div>
-        <i class="fas fa-clipboard-list stat-icon"></i>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-4">
-    <div class="dashboard-card stat-card time-card h-100">
-      <div class="card-body">
-        <div class="row">
-          <div class="col">
-            <h6 class="text-white-50 text-uppercase mb-1 small fw-bold">
-              Study Time
-            </h6>
-            <h2 class="display-4 fw-bold mb-0">
-              15{{total_study_time.days}}d 50{{study_hours}}h 15{{study_minutes}}m
-            </h2>
-          </div>
-        </div>
-        <i class="fas fa-clock stat-icon"></i>
-      </div>
-    </div>
+  <div class="cluster">
+    <a class="btn" href="{% url 'learning_logs:new_topic' %}">
+      <svg width="16" height="16"><use href="#i-plus" /></svg>新建主题
+    </a>
+    <a class="btn btn--primary" href="{% url 'learning_logs:topics' %}">去看看主题</a>
   </div>
 </div>
 
-<div class="row mb-4 g-3">
-  <!-- 学习目标 -->
-  <div class="col-md-6">
-    <div class="dashboard-card h-100">
-      <div
-        class="card-header d-flex justify-content-between align-items-center bg-white"
-      >
-        <h5 class="mb-0 fw-bold">
-          <i class="fas fa-bullseye text-primary me-2"></i>Learning Goals
-        </h5>
-        <span class="badge bg-primary rounded-pill">{{ goals|length }}</span>
-      </div>
-      <div class="card-body">
-        {% if goals %}
-        <div class="list-group list-group-flush">
-          {% for goal in goals %}
-          <div
-            class="list-group-item goal-item {% if goal.completed %}completed{% endif %} px-3 py-3 d-flex justify-content-between align-items-center"
-          >
-            <div>
-              <h6 class="mb-1 fw-bold">{{ goal.title }}</h6>
-              <div class="d-flex align-items-center">
-                <i class="far fa-calendar-alt text-muted me-2"></i>
-                <small class="text-muted"
-                  >{{ goal.days_remaining }} days remaining</small
-                >
-              </div>
-            </div>
-            <a
-              href="{% url 'learning_logs:toggle_goal' goal.id %}"
-              class="btn btn-sm {% if goal.completed %}btn-success{% else %}btn-outline-success{% endif %} rounded-pill"
-            >
-              {% if goal.completed %}
-              <i class="fas fa-check me-1"></i>Completed {% else %} Mark
-              Complete {% endif %}
-            </a>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-4">
-          <div class="mb-3">
-            <i class="far fa-flag fa-3x text-muted"></i>
-          </div>
-          <p class="text-muted mb-3">No active goals.</p>
-          <a
-            href="{% url 'learning_logs:goals' %}"
-            class="btn btn-primary btn-sm rounded-pill"
-          >
-            <i class="fas fa-plus me-1"></i>Set a goal
-          </a>
-        </div>
-        {% endif %}
-      </div>
-    </div>
+<div class="grid mb-3">
+  <div class="metric">
+    <span class="metric__label">本周投入</span>
+    <span class="metric__value">{{ overview.week_minutes|dur }}</span>
+    <span class="metric__hint">近 30 天 {{ overview.month_minutes|dur }}</span>
   </div>
+  <div class="metric">
+    <span class="metric__label">连续学习</span>
+    <span class="metric__value">{{ overview.streak }}<small>天</small></span>
+    <span class="metric__hint">今天有记录就会延续</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">主题 / 笔记</span>
+    <span class="metric__value">{{ overview.topic_count }}<small>个</small></span>
+    <span class="metric__hint">{{ overview.entry_count }} 条笔记 · {{ overview.completed_entries }} 条已掌握</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">进行中</span>
+    <span class="metric__value">{{ overview.active_paths }}<small>条路径</small></span>
+    <span class="metric__hint">{{ overview.active_goals }} 个未完成目标</span>
+  </div>
+</div>
 
-  <!-- 话题进度 -->
-  <div class="col-md-6">
-    <div class="dashboard-card h-100">
-      <div
-        class="card-header d-flex justify-content-between align-items-center bg-white"
-      >
-        <h5 class="mb-0 fw-bold">
-          <i class="fas fa-chart-line text-secondary me-2"></i>Topic Progress
-        </h5>
+<div class="split mb-3">
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>学习热力图</h3>
+        <span class="tiny muted">最近 17 周 · 深色代表投入更多</span>
       </div>
-      <div class="card-body">
-        {% if topics_progress %} {% for topic in topics_progress %}
-        <div class="mb-4">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <h6 class="mb-0">
-              <a
-                href="{% url 'learning_logs:topic' topic.id %}"
-                class="text-decoration-none"
-              >
-                {{ topic.text }}
-              </a>
-            </h6>
-            <div class="d-flex align-items-center">
-              <span class="badge bg-light text-dark me-2"
-                >{{ topic.completed_items }}/{{ topic.total_items }}</span
-              >
-              <span
-                class="badge {% if topic.progress_percentage > 75 %}bg-success{% elif topic.progress_percentage > 25 %}bg-warning{% else %}bg-danger{% endif %}"
-              >
-                {{ topic.progress_percentage }}%
-              </span>
+      <div class="card__body">
+        <div class="heatmap">
+          <div class="heatmap__weeks">
+            {% for week in heatmap %}
+            <div class="heatmap__week">
+              {% for cell in week %}
+              {% if cell.level < 0 %}
+              <div class="heatmap__cell" style="visibility: hidden"></div>
+              {% else %}
+              <div
+                class="heatmap__cell"
+                data-level="{{ cell.level }}"
+                title="{{ cell.date|date:'Y-m-d' }} · {{ cell.minutes }} 分钟"
+              ></div>
+              {% endif %}
+              {% endfor %}
             </div>
+            {% endfor %}
           </div>
-          <div class="progress">
+        </div>
+        <div class="heatmap__legend">
+          <span>少</span>
+          <span class="heatmap__cell"></span>
+          <span class="heatmap__cell" data-level="1"></span>
+          <span class="heatmap__cell" data-level="2"></span>
+          <span class="heatmap__cell" data-level="3"></span>
+          <span class="heatmap__cell" data-level="4"></span>
+          <span>多</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>最近 8 周投入</h3>
+        <span class="tiny muted">单位：分钟</span>
+      </div>
+      <div class="card__body">
+        <div class="bars">
+          {% for day in weekly %}
+          <div class="bars__item" title="{{ day.date|date:'m-d' }} · {{ day.minutes }} 分钟">
             <div
-              class="progress-bar"
-              role="progressbar"
-              style="width: {{ topic.progress_percentage }}%"
-              aria-valuenow="{{ topic.progress_percentage }}"
-              aria-valuemin="0"
-              aria-valuemax="100"
+              class="bars__bar"
+              style="height: {{ day.pct }}%"
+              {% if not day.minutes %}data-empty="true"{% endif %}
             ></div>
           </div>
-        </div>
-        {% endfor %} {% else %}
-        <div class="text-center py-4">
-          <div class="mb-3">
-            <i class="fas fa-chart-bar fa-3x text-muted"></i>
-          </div>
-          <p class="text-muted mb-3">No topics available.</p>
-          <a
-            href="{% url 'learning_logs:new_topic' %}"
-            class="btn btn-secondary btn-sm rounded-pill"
-          >
-            <i class="fas fa-plus me-1"></i>Add a topic
-          </a>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="row mb-4 g-3">
-  <!-- 学习路径 -->
-  <div class="col-md-6">
-    <div class="dashboard-card h-100">
-      <div
-        class="card-header d-flex justify-content-between align-items-center bg-white"
-      >
-        <h5 class="mb-0 fw-bold">
-          <i class="fas fa-route text-primary me-2"></i>学习路径
-        </h5>
-        <a
-          href="{% url 'learning_logs:learning_paths' %}"
-          class="btn btn-sm btn-outline-primary"
-          >查看全部</a
-        >
-      </div>
-      <div class="card-body">
-        {% if learning_paths %}
-        <div class="list-group list-group-flush">
-          {% for path in learning_paths %}
-          <div class="list-group-item px-3 py-3">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h6 class="mb-1">{{ path.title }}</h6>
-                <div class="progress" style="height: 5px; width: 100px">
-                  <div
-                    class="progress-bar bg-success"
-                    role="progressbar"
-                    style="width: {{ path.get_progress }}%;"
-                    aria-valuenow="{{ path.get_progress }}"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                  ></div>
-                </div>
-              </div>
-              <a
-                href="{% url 'learning_logs:learning_path_detail' path.id %}"
-                class="btn btn-sm btn-outline-primary"
-              >
-                <i class="fas fa-arrow-right"></i>
-              </a>
-            </div>
-          </div>
           {% endfor %}
         </div>
-        {% else %}
-        <div class="text-center py-4">
-          <div class="mb-3">
-            <i class="fas fa-route fa-3x text-muted"></i>
-          </div>
-          <p class="text-muted mb-3">您还没有创建学习路径。</p>
-          <a
-            href="{% url 'learning_logs:new_learning_path' %}"
-            class="btn btn-primary btn-sm rounded-pill"
-          >
-            <i class="fas fa-plus me-1"></i>创建学习路径
-          </a>
+        <div class="between mt-1 tiny muted">
+          <span>{{ weekly.0.date|date:"n月j日" }}</span>
+          <span>今天</span>
         </div>
-        {% endif %}
       </div>
-    </div>
-  </div>
+    </section>
 
-  <!-- 最近活动 -->
-  <div class="col-md-6">
-    <div class="dashboard-card h-100">
-      <div
-        class="card-header d-flex justify-content-between align-items-center bg-white"
-      >
-        <h5 class="mb-0 fw-bold">
-          <i class="fas fa-history text-accent me-2"></i>Recent Activity
-        </h5>
+    <section class="card">
+      <div class="card__head">
+        <h3>主题活跃度</h3>
+        <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:topics' %}">全部</a>
       </div>
-      <div class="card-body">
-        {% if recent_entries %}
-        <div class="list-group list-group-flush">
-          {% for entry in recent_entries %}
-          <a
-            href="{% url 'learning_logs:topic' entry.topic.id %}"
-            class="list-group-item activity-item list-group-item-action px-3 py-3"
-          >
-            <div class="d-flex w-100 justify-content-between align-items-start">
-              <h6 class="mb-1 fw-bold">{{ entry.topic.text }}</h6>
-              <small class="text-muted badge bg-light"
-                >{{ entry.date_added|date:"M d, Y" }}</small
-              >
-            </div>
-            <p class="mb-1 text-muted small">
-              {{ entry.text|truncatechars:100 }}
-            </p>
-          </a>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-4">
-          <div class="mb-3">
-            <i class="far fa-clock fa-3x text-muted"></i>
-          </div>
-          <p class="text-muted mb-0">No recent activity.</p>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="row g-3">
-  <!-- 推荐话题 -->
-  <div class="col-md-6">
-    <div class="dashboard-card h-100">
-      <div
-        class="card-header d-flex justify-content-between align-items-center bg-white"
-      >
-        <h5 class="mb-0 fw-bold">
-          <i class="fas fa-lightbulb text-warning me-2"></i>Recommended Topics
-        </h5>
-      </div>
-      <div class="card-body">
-        {% if popular_topics %}
-        <div class="list-group list-group-flush">
-          {% for topic in popular_topics %}
-          <div class="list-group-item p-3">
-            <div class="d-flex w-100 justify-content-between align-items-start">
-              <div>
-                <h6 class="mb-1 fw-bold">{{ topic.text }}</h6>
-                <div class="d-flex align-items-center text-muted small">
-                  <i class="fas fa-file-alt me-1"></i>
-                  <span>{{ topic.entry_set.count }} entries</span>
-                  {% if topic.progress_percentage %}
-                  <span class="mx-2">•</span>
-                  <i class="fas fa-tasks me-1"></i>
-                  <span>{{ topic.progress_percentage }}% completed</span>
-                  {% endif %}
-                </div>
-              </div>
-              <div class="btn-group">
-                <a
-                  href="{% url 'learning_logs:topic' topic.id %}"
-                  class="btn btn-sm btn-outline-primary rounded-pill me-1"
-                >
-                  <i class="fas fa-eye me-1"></i>View
-                </a>
-                <a
-                  href="{% url 'learning_logs:start_session' topic.id %}"
-                  class="btn btn-sm btn-success rounded-pill"
-                >
-                  <i class="fas fa-play me-1"></i>Study
-                </a>
-              </div>
+      {% if topic_ranking %}
+      <div class="list">
+        {% for item in topic_ranking %}
+        <a class="list__item list__item--link" href="{% url 'learning_logs:topic' item.topic.id %}">
+          <div class="list__main">
+            <span class="list__title">{{ item.topic.text }}</span>
+            <div class="progress mt-1" style="max-width: 220px">
+              <div class="progress__bar" style="width: {{ item.progress }}%"></div>
             </div>
           </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-4">
-          <div class="mb-3">
-            <i class="far fa-lightbulb fa-3x text-muted"></i>
-          </div>
-          <p class="text-muted mb-0">Add more topics to get recommendations.</p>
-        </div>
-        {% endif %}
+          <span class="badge badge--outline">{{ item.entry_count }} 条</span>
+          <span class="small muted tabular">{{ item.progress }}%</span>
+        </a>
+        {% endfor %}
       </div>
-    </div>
+      {% else %}
+      <div class="card__body muted small">还没有主题，先建一个吧。</div>
+      {% endif %}
+    </section>
   </div>
-</div>
-{% endblock %} {% block extra_js %}
-<script
-  src="https://kit.fontawesome.com/yourcode.js"
-  crossorigin="anonymous"
-></script>
-<script>
-  // 添加进度条动画
-  document.addEventListener("DOMContentLoaded", function () {
-    // 滚动时显示进度条动画
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.style.width =
-            entry.target.getAttribute("aria-valuenow") + "%";
-          observer.unobserve(entry.target);
-        }
-      });
-    });
 
-    document.querySelectorAll(".progress-bar").forEach((bar) => {
-      bar.style.width = "0%";
-      observer.observe(bar);
-    });
-  });
-</script>
+  <aside class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>最近记录</h3>
+        <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:topics' %}">更多</a>
+      </div>
+      {% if recent_entries %}
+      <div class="list">
+        {% for entry in recent_entries %}
+        <a class="list__item list__item--link" href="{% url 'learning_logs:entry_comments' entry.id %}">
+          <div class="list__main">
+            <span class="list__title">{{ entry.text|striptags|truncatechars:42 }}</span>
+            <span class="list__meta">
+              <span>{{ entry.topic.text }}</span>
+              <span>{{ entry.date_added|naturaltime }}</span>
+            </span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card__body muted small">还没有记录。</div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>近期目标</h3>
+        <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:goals' %}">管理</a>
+      </div>
+      {% if goals %}
+      <div class="list">
+        {% for goal in goals %}
+        <div class="list__item">
+          <div class="list__main">
+            <span class="list__title">{{ goal.title }}</span>
+            <span class="list__meta">{{ goal.target_date|date:"n月j日" }} · 剩 {{ goal.days_remaining }} 天</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card__body muted small">没有进行中的目标。</div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="card__head"><h3>学习路径</h3></div>
+      {% if paths %}
+      <div class="list">
+        {% for path in paths %}
+        <a class="list__item list__item--link" href="{% url 'learning_logs:learning_path_detail' path.id %}">
+          <div class="list__main">
+            <span class="list__title">{{ path.title }}</span>
+            <span class="list__meta">{{ path.get_progress }}% 完成</span>
+          </div>
+          <svg width="16" height="16" class="muted"><use href="#i-arrow-right" /></svg>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card__body muted small">
+        还没有路径，<a href="{% url 'learning_logs:new_learning_path' %}">创建一条</a>。
+      </div>
+      {% endif %}
+    </section>
+  </aside>
+</div>
 {% endblock %}

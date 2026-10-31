@@ -36,6 +36,10 @@ SECRET_KEY = os.getenv(
 )
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]")
+if DEBUG:
+    # 本地调试 / 测试客户端常用主机名
+    ALLOWED_HOSTS += ["testserver", "0.0.0.0"]
+
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 # ---------------------------------------------------------------------------

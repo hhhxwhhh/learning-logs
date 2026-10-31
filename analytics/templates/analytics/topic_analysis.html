@@ -1,0 +1,106 @@
+{% extends "learning_logs/base.html" %}
+{% load humanize ll_extras %}
+
+{% block title %}{{ topic.text }} · 主题分析{% endblock %}
+
+{% block content %}
+<nav class="cluster small muted mb-2">
+  <a href="{% url 'analytics:dashboard' %}">学习分析</a>
+  <span>/</span>
+  <span>{{ topic.text }}</span>
+</nav>
+
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Topic analytics</div>
+    <h1>{{ topic.text }}</h1>
+    <p>最近 8 周的学习投入与产出。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn" href="{% url 'learning_logs:topic' topic.id %}">主题笔记</a>
+    <a class="btn btn--primary" href="{% url 'learning_logs:ai_assistant' topic.id %}">
+      <svg width="16" height="16"><use href="#i-spark" /></svg>AI 复盘
+    </a>
+  </div>
+</div>
+
+<div class="grid mb-3">
+  <div class="metric">
+    <span class="metric__label">笔记</span>
+    <span class="metric__value">{{ entry_count }}<small>条</small></span>
+    <span class="metric__hint">已掌握 {{ completed_entries }} 条</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">完成度</span>
+    <span class="metric__value">{{ topic.progress_percentage }}<small>%</small></span>
+    <div class="progress mt-1"><div class="progress__bar" style="width: {{ topic.progress_percentage }}%"></div></div>
+  </div>
+  <div class="metric">
+    <span class="metric__label">计时时长</span>
+    <span class="metric__value">{{ topic_minutes|dur }}</span>
+    <span class="metric__hint">{{ session_count }} 次会话</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">最后学习</span>
+    <span class="metric__value" style="font-size: 1.15rem">
+      {% if analytics.last_studied %}{{ analytics.last_studied|date:"n月j日" }}{% else %}—{% endif %}
+    </span>
+    <span class="metric__hint">创建于 {{ topic.date_added|date:"Y-m-d" }}</span>
+  </div>
+</div>
+
+<section class="card mb-3">
+  <div class="card__head">
+    <h3>近 8 周每日投入</h3>
+    <span class="tiny muted">包含计时与笔记折算</span>
+  </div>
+  <div class="card__body">
+    <div class="bars" style="height: 150px">
+      {% for day in series %}
+      <div class="bars__item" title="{{ day.date|date:'m-d' }} · {{ day.minutes }} 分钟">
+        <div class="bars__bar" style="height: {{ day.pct }}%" {% if not day.minutes %}data-empty="true"{% endif %}></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<div class="split">
+  <section class="card">
+    <div class="card__head"><h3>最近笔记</h3></div>
+    {% if entries %}
+    <div class="list">
+      {% for entry in entries|slice:":8" %}
+      <a class="list__item list__item--link" href="{% url 'learning_logs:entry_comments' entry.id %}">
+        <div class="list__main">
+          <span class="list__title">{{ entry.text|striptags|truncatechars:50 }}</span>
+          <span class="list__meta">{{ entry.date_added|naturaltime }}</span>
+        </div>
+        {% if entry.completed %}<span class="badge badge--teal">已掌握</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card__body muted small">还没有笔记。</div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card__head"><h3>学习会话</h3></div>
+    {% if sessions %}
+    <div class="list">
+      {% for session in sessions %}
+      <div class="list__item">
+        <div class="list__main">
+          <span class="list__title">{{ session.start_time|date:"n月j日 H:i" }}</span>
+          <span class="list__meta">{{ session.duration_minutes }} 分钟</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card__body muted small">还没有计时记录。</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

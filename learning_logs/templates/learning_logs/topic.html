@@ -1,149 +1,154 @@
-<!-- filepath: f:\web_python\ll_project\learning_logs\templates\learning_logs\topic.html -->
-{% extends "learning_logs/base.html" %} {% block content %}
-<div class="container">
-  <!-- 在话题页面顶部添加学习会话控件 -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>{{ topic.text }}</h1>
+{% extends "learning_logs/base.html" %}
+{% load humanize ll_extras %}
 
-    <div>
+{% block title %}{{ topic.text }} · 知迹{% endblock %}
+
+{% block content %}
+<nav class="cluster small muted mb-2">
+  <a href="{% url 'learning_logs:topics' %}">主题</a>
+  <span>/</span>
+  <span>{{ topic.text }}</span>
+</nav>
+
+<div class="page-head">
+  <div>
+    <h1>{{ topic.text }}</h1>
+    <div class="cluster small muted mt-1">
+      <span>{{ topic.total_items }} 条记录</span>
+      <span>·</span>
+      <span>更新于 {{ topic.date_added|naturaltime }}</span>
       {% if active_session %}
-      <div class="d-flex align-items-center">
-        <div class="me-3">
-          <span class="badge bg-success">Currently Studying</span>
-          <span id="timer" class="ms-2">00:00:00</span>
-        </div>
-        <form
-          action="{% url 'learning_logs:end_session' %}"
-          method="post"
-          class="d-inline"
-        >
-          {% csrf_token %}
-          <button type="submit" class="btn btn-outline-danger">
-            End Session
-          </button>
-        </form>
-      </div>
-      {% else %}
-      <a
-        href="{% url 'learning_logs:start_session' topic.id %}"
-        class="btn btn-success"
-      >
-        Start Study Session
-      </a>
+      <span class="badge badge--amber">
+        <svg width="12" height="12"><use href="#i-clock" /></svg>计时中
+      </span>
       {% endif %}
     </div>
   </div>
 
-  <!-- 添加进度条 -->
-  <div class="mb-4">
-    <div class="d-flex justify-content-between">
-      <h6>Progress</h6>
-      <span>{{ topic.completed_items }} / {{ topic.total_items }}</span>
+  <div class="cluster">
+    <a class="btn btn--primary" href="{% url 'learning_logs:new_entry' topic.id %}">
+      <svg width="16" height="16"><use href="#i-plus" /></svg>写一条记录
+    </a>
+    <a class="btn" href="{% url 'learning_logs:ai_assistant' topic.id %}">
+      <svg width="16" height="16"><use href="#i-spark" /></svg>AI 助教
+    </a>
+    {% if active_session %}
+    <form method="post" action="{% url 'learning_logs:end_session' %}">
+      {% csrf_token %}
+      <button class="btn btn--soft" type="submit">
+        <svg width="16" height="16"><use href="#i-clock" /></svg>结束计时
+      </button>
+    </form>
+    {% else %}
+    <form method="post" action="{% url 'learning_logs:start_session' topic.id %}">
+      {% csrf_token %}
+      <button class="btn" type="submit">
+        <svg width="16" height="16"><use href="#i-clock" /></svg>开始计时
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <div class="card">
+      <div class="card__body stack-sm">
+        <div class="between">
+          <span class="small strong">整体进度</span>
+          <span class="small muted">{{ topic.completed_items }} / {{ topic.total_items }}</span>
+        </div>
+        <div class="progress">
+          <div class="progress__bar" style="width: {{ topic.progress_percentage }}%"></div>
+        </div>
+      </div>
     </div>
-    <div class="progress">
-      <div
-        class="progress-bar"
-        role="progressbar"
-        style="width: {{ topic.progress_percentage }}%"
-        aria-valuenow="{{ topic.progress_percentage }}"
-        aria-valuemin="0"
-        aria-valuemax="100"
-      ></div>
+
+    {% for entry in entries %}
+    <article class="card">
+      <div class="card__head">
+        <div class="cluster small">
+          <span class="badge {% if entry.completed %}badge--teal{% else %}badge--outline{% endif %}">
+            {% if entry.completed %}已完成{% else %}进行中{% endif %}
+          </span>
+          <span class="muted">{{ entry.date_added|date:"Y-m-d H:i" }}</span>
+        </div>
+        <div class="cluster">
+          <a
+            class="btn btn--sm btn--ghost"
+            href="{% url 'learning_logs:entry_comments' entry.id %}"
+            title="评论"
+          >
+            <svg width="14" height="14"><use href="#i-message" /></svg>
+            {{ entry.comments.count }}
+          </a>
+          <a
+            class="btn btn--sm btn--ghost"
+            href="{% url 'learning_logs:edit_entry' entry.id %}"
+            title="编辑"
+          >
+            <svg width="14" height="14"><use href="#i-edit" /></svg>
+          </a>
+          <form
+            method="post"
+            action="{% url 'learning_logs:delete_entry' entry.id %}"
+            data-confirm="确定删除这条学习记录吗？"
+          >
+            {% csrf_token %}
+            <button class="btn btn--sm btn--ghost" type="submit" title="删除" aria-label="删除记录">
+              <svg width="14" height="14"><use href="#i-trash" /></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="prose">{{ entry.text|markdown }}</div>
+      </div>
+    </article>
+    {% empty %}
+    <div class="card">
+      <div class="empty">
+        <div class="empty__icon"><svg><use href="#i-doc" /></svg></div>
+        <h3>这个主题还没有记录</h3>
+        <p>建议按「今天学了什么 / 卡在哪里 / 下一步做什么」写第一条，30 秒即可。</p>
+        <a class="btn btn--primary" href="{% url 'learning_logs:new_entry' topic.id %}">写第一条</a>
+      </div>
     </div>
+    {% endfor %}
   </div>
 
-  <div class="text-center mb-4">
-    <a
-      href="{% url 'learning_logs:new_entry' topic.id %}"
-      class="btn btn-success"
-    >
-      Add a New Entry
-    </a>
-    <a
-      href="{% url 'learning_logs:ai_assistant' topic.id %}"
-      class="btn btn-success"
-    >
-      <i class="fas fa-robot me-2"></i>AI Assistant
-    </a>
-  </div>
-  {% for entry in entries %}
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <span class="fw-bold">{{ entry.date_added|date:'M d, Y H:i' }}</span>
-      <div>
-        <!-- 编辑按钮 -->
-        <a
-          href="{% url 'learning_logs:edit_entry' entry.id %}"
-          class="btn btn-sm btn-outline-primary"
-        >
-          Edit Entry
+  <aside class="stack">
+    <div class="card">
+      <div class="card__head"><h3>学习辅助</h3></div>
+      <div class="list">
+        <a class="list__item list__item--link" href="{% url 'learning_logs:ai_assistant' topic.id %}">
+          <svg width="18" height="18"><use href="#i-brain" /></svg>
+          <div class="list__main">
+            <span class="list__title">AI 助教</span>
+            <span class="list__meta">基于本主题笔记问答、总结、出题</span>
+          </div>
         </a>
-        <!-- 删除按钮 -->
-        <form
-          method="post"
-          action="{% url 'learning_logs:delete_entry' entry.id %}"
-          class="d-inline"
-        >
-          {% csrf_token %}
-          <button
-            type="submit"
-            class="btn btn-sm btn-outline-danger"
-            onclick="return confirm('Are you sure you want to delete this entry?');"
-          >
-            Delete Entry
-          </button>
-        </form>
-        <!-- 评论按钮 -->
-        <a
-          href="{% url 'learning_logs:entry_comments' entry.id %}"
-          class="btn btn-sm btn-outline-info"
-        >
-          Comments
+        <a class="list__item list__item--link" href="{% url 'analytics:topic_analysis' topic.id %}">
+          <svg width="18" height="18"><use href="#i-chart" /></svg>
+          <div class="list__main">
+            <span class="list__title">投入分析</span>
+            <span class="list__meta">学习时长与产出趋势</span>
+          </div>
+        </a>
+        <a class="list__item list__item--link" href="{% url 'learning_logs:search' %}?q={{ topic.text|urlencode }}">
+          <svg width="18" height="18"><use href="#i-search" /></svg>
+          <div class="list__main">
+            <span class="list__title">相关内容</span>
+            <span class="list__meta">搜索提到该主题的所有笔记</span>
+          </div>
         </a>
       </div>
     </div>
-    <div class="card-body">
-      <p class="card-text">{{ entry.text|linebreaks }}</p>
+
+    <div class="panel small muted">
+      <strong class="strong" style="display:block; margin-bottom:0.3rem">Markdown 小贴士</strong>
+      用 <code>##</code> 分节、<code>-</code> 列要点、反引号包代码，笔记会自动排版。代码块可以直接复制。
     </div>
-  </div>
-  {% empty %}
-  <div class="alert alert-warning text-center" role="alert">
-    There are no entries for this topic yet.
-  </div>
-  {% endfor %}
+  </aside>
 </div>
-{% endblock content %}
-
-<!-- 在 topic.html 底部添加 -->
-{% block extra_js %} {% if active_session %}
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    // 获取会话开始时间
-    const startTime = new Date('{{ active_session.start_time|date:"c" }}');
-    const timerElement = document.getElementById("timer");
-
-    function updateTimer() {
-      const now = new Date();
-      const diff = now - startTime;
-
-      // 计算小时、分钟和秒
-      const hours = Math.floor(diff / 3600000);
-      const minutes = Math.floor((diff % 3600000) / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-
-      // 格式化时间
-      const formattedHours = String(hours).padStart(2, "0");
-      const formattedMinutes = String(minutes).padStart(2, "0");
-      const formattedSeconds = String(seconds).padStart(2, "0");
-
-      timerElement.textContent = `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
-    }
-
-    // 立即更新一次
-    updateTimer();
-
-    // 每秒更新一次
-    setInterval(updateTimer, 1000);
-  });
-</script>
-{% endif %} {% endblock %}
+{% endblock %}

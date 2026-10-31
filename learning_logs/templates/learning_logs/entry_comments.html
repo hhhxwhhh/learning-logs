@@ -1,30 +1,79 @@
-<!-- filepath: f:\web_python\ll_project\learning_logs\templates\learning_logs\entry_comments.html -->
-{% extends "learning_logs/base.html" %} {% block content %}
-<div class="container">
-  <h2>Comments for Entry: {{ entry.text }}</h2>
-  <hr />
+{% extends "learning_logs/base.html" %}
+{% load humanize ll_extras %}
 
-  <h4>Comments</h4>
-  <ul class="list-group mb-4">
-    {% for comment in comments %}
-    <li class="list-group-item">
-      <strong>{{ comment.user.username }}</strong>:
-      <p>{{ comment.text }}</p>
-      <small class="text-muted">{{ comment.created_at }}</small>
-    </li>
-    {% empty %}
-    <li class="list-group-item text-muted">No comments yet.</li>
-    {% endfor %}
-  </ul>
+{% block title %}讨论 · {{ entry.topic.text }}{% endblock %}
 
-  {% if user.is_authenticated %}
-  <h5>Add a Comment</h5>
-  <form method="post">
-    {% csrf_token %} {{ form.as_p }}
-    <button type="submit" class="btn btn-primary">Submit</button>
-  </form>
-  {% else %}
-  <p class="text-muted">You must be logged in to add a comment.</p>
-  {% endif %}
+{% block content %}
+<nav class="cluster small muted mb-2">
+  <a href="{% url 'learning_logs:topic' entry.topic.id %}">{{ entry.topic.text }}</a>
+  <span>/</span>
+  <span>记录讨论</span>
+</nav>
+
+<div class="split">
+  <div class="stack">
+    <article class="card">
+      <div class="card__head">
+        <div class="cluster small">
+          <span class="badge {% if entry.completed %}badge--teal{% else %}badge--outline{% endif %}">
+            {% if entry.completed %}已完成{% else %}进行中{% endif %}
+          </span>
+          <span class="muted">{{ entry.date_added|naturaltime }}</span>
+        </div>
+        <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:edit_entry' entry.id %}">
+          <svg width="14" height="14"><use href="#i-edit" /></svg>编辑
+        </a>
+      </div>
+      <div class="card__body">
+        <div class="prose">{{ entry.text|markdown }}</div>
+      </div>
+    </article>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>讨论（{{ comments|length }}）</h3>
+      </div>
+      <div class="card__body">
+        <form method="post" class="stack-sm">
+          {% csrf_token %}
+          {{ form.text }}
+          {{ form.text.errors }}
+          <div class="right">
+            <button class="btn btn--primary btn--sm" type="submit">发表评论</button>
+          </div>
+        </form>
+      </div>
+      {% if comments %}
+      <div class="list">
+        {% for comment in comments %}
+        <div class="list__item" style="align-items: flex-start">
+          <span class="avatar">{{ comment.user.username|first|upper }}</span>
+          <div class="list__main">
+            <div class="cluster small">
+              <strong>{{ comment.user.username }}</strong>
+              <span class="muted">{{ comment.created_at|naturaltime }}</span>
+            </div>
+            <div class="small">{{ comment.text|linebreaksbr }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card__body muted small">还没有评论，写下你的第一个补充或疑问。</div>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside class="stack">
+    <div class="panel small">
+      <strong class="strong">这是学习闭环的一环</strong>
+      <p class="muted mt-1" style="margin-bottom: 0">
+        把疑问写下来，两天后回看；能自己回答的，说明真的学会了。
+      </p>
+    </div>
+    <a class="btn btn--block" href="{% url 'learning_logs:ai_assistant' entry.topic.id %}">
+      <svg width="16" height="16"><use href="#i-spark" /></svg>让 AI 解释这个疑问
+    </a>
+  </aside>
 </div>
-{% endblock content %}
+{% endblock %}
