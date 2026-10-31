@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import ChatSession, Entry, Flashcard, LearningPath, Topic
-from .services import stats
+from .services import search, stats
 
 
 class FakeProvider:
@@ -237,3 +237,45 @@ class AIPathGenerationTests(BaseTestCase):
         self.assertEqual(path.title, "测试路径")
         self.assertEqual(path.pathstep_set.count(), 2)
         self.assertTrue(Topic.objects.filter(owner=self.alice, text="基础语法").exists())
+
+
+class SearchApiTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        Entry.objects.create(
+            topic=self.topic, text="QuerySet 是惰性的，select_related 解决 N+1 查询"
+        )
+
+    def test_api_requires_login(self):
+        anonymous = Client()
+        response = anonymous.get(reverse("learning_logs:api_search"), {"q": "QuerySet"})
+        self.assertEqual(response.status_code, 302)
+
+    def test_returns_highlighted_entries(self):
+        response = self.client.get(reverse("learning_logs:api_search"), {"q": "QuerySet"})
+        data = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["entries"])
+        self.assertIn("<mark>", data["entries"][0]["snippet"])
+        self.assertEqual(data["entries"][0]["id"], Entry.objects.latest("id").id)
+
+    def test_empty_query_returns_actions(self):
+        data = self.client.get(reverse("learning_logs:api_search"), {"q": ""}).json()
+        self.assertTrue(data["actions"])
+        self.assertEqual(data["topics"], [])
+
+    def test_multi_term_query(self):
+        terms = search.tokenize("惰性 查询")
+        self.assertEqual(terms, ["惰性", "查询"])
+        result = search.search_all(self.alice, "惰性 查询")
+        self.assertGreaterEqual(result["total"], 1)
+
+    def test_search_does_not_leak_other_users(self):
+        Entry.objects.create(
+            topic=Topic.objects.create(text="秘密", owner=self.bob),
+            text="QuerySet 属于别人",
+        )
+        data = self.client.get(reverse("learning_logs:api_search"), {"q": "QuerySet"}).json()
+        self.assertEqual(len(data["entries"]), 2)  # 只有 alice 的两条
+        for row in data["entries"]:
+            self.assertNotIn("属于别人", row["snippet"])

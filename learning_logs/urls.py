@@ -22,6 +22,7 @@ urlpatterns = [
     path("entry/<int:entry_id>/comments/", views.entry_comments, name="entry_comments"),
     # 搜索
     path("search/", views.search, name="search"),
+    path("api/search/", views.api_search, name="api_search"),
     # 仪表盘与目标
     path("dashboard/", views.dashboard, name="dashboard"),
     path("goals/", views.goals, name="goals"),

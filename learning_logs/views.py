@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -27,6 +27,7 @@ from .models import (
     StudySession,
     Topic,
 )
+from .services import search as search_service
 from .services import stats
 
 app_name = "learning_logs"
@@ -510,3 +511,31 @@ def generate_cards(request, topic_id):
     else:
         messages.success(request, f"已为「{topic.text}」生成 {created} 张闪卡。")
     return redirect("learning_logs:flashcards")
+
+
+QUICK_ACTIONS = [
+    {"label": "新建主题", "url": "/new_topic/", "keywords": ["新建", "主题", "create", "topic"]},
+    {"label": "写一条笔记", "url": "/topics/", "keywords": ["笔记", "记录", "entry", "new"]},
+    {"label": "仪表盘", "url": "/dashboard/", "keywords": ["仪表盘", "dashboard", "统计", "首页"]},
+    {"label": "闪卡复习", "url": "/flashcards/review/", "keywords": ["闪卡", "复习", "review", "记忆"]},
+    {"label": "学习路径", "url": "/learning-paths/", "keywords": ["路径", "计划", "path", "plan"]},
+    {"label": "学习分析", "url": "/analytics/", "keywords": ["分析", "图表", "analytics", "数据"]},
+    {"label": "学习目标", "url": "/goals/", "keywords": ["目标", "goal", " deadline"]},
+]
+
+
+@login_required
+def api_search(request):
+    """命令面板搜索接口：返回主题、笔记与快捷动作。"""
+    query = (request.GET.get("q") or "").strip()[:80]
+    data = search_service.search_all(request.user, query)
+
+    terms = [term.lower() for term in data["terms"]]
+    actions = [
+        {"label": item["label"], "url": item["url"]}
+        for item in QUICK_ACTIONS
+        if not terms
+        or any(term in item["label"].lower() or any(term in kw for kw in item["keywords"]) for term in terms)
+    ][:5]
+    data["actions"] = actions
+    return JsonResponse(data)

@@ -164,3 +164,187 @@
     enhanceCodeBlocks();
   });
 })();
+
+/* ------------------------------------------------------------ 命令面板 */
+(function () {
+  "use strict";
+
+  function escapeHtml(text) {
+    return String(text).replace(/[<>&]/g, function (c) {
+      return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
+    });
+  }
+
+  function initPalette() {
+    const palette = document.getElementById("palette");
+    if (!palette) return;
+
+    const input = document.getElementById("palette-input");
+    const results = document.getElementById("palette-results");
+    const endpoint = "/api/search/";
+    let items = [];
+    let active = -1;
+    let timer = null;
+    let controller = null;
+
+    function isOpen() {
+      return !palette.hidden;
+    }
+
+    function open() {
+      palette.hidden = false;
+      input.value = "";
+      input.focus();
+      load("");
+    }
+
+    function close() {
+      palette.hidden = true;
+      if (controller) controller.abort();
+    }
+
+    function iconFor(group) {
+      return group === "主题" ? "#i-layers" : group === "笔记" ? "#i-doc" : "#i-spark";
+    }
+
+    function render(data) {
+      const groups = [];
+      if (data.actions && data.actions.length) {
+        groups.push({
+          name: "快速跳转",
+          rows: data.actions.map(function (action) {
+            return { title: action.label, snippet: "", url: action.url };
+          }),
+        });
+      }
+      if (data.topics && data.topics.length) groups.push({ name: "主题", rows: data.topics });
+      if (data.entries && data.entries.length) groups.push({ name: "笔记", rows: data.entries });
+
+      if (!groups.length) {
+        results.innerHTML =
+          '<div class="palette__empty">没有找到「' +
+          escapeHtml(data.query || "") +
+          "」<br />换个关键词试试，或按 Esc 关闭。</div>";
+        items = [];
+        active = -1;
+        return;
+      }
+
+      let html = "";
+      let index = 0;
+      groups.forEach(function (group) {
+        html += '<div class="palette__group">' + group.name + "</div>";
+        group.rows.forEach(function (row) {
+          html +=
+            '<div class="palette__item" data-index="' +
+            index +
+            '" data-url="' +
+            escapeHtml(row.url) +
+            '">' +
+            '<span class="palette__item-icon"><svg><use href="' +
+            iconFor(group.name) +
+            '"/></svg></span>' +
+            '<span class="palette__item-body">' +
+            '<span class="palette__item-title">' +
+            escapeHtml(row.title) +
+            "</span>" +
+            (row.snippet
+              ? '<span class="palette__item-snippet">' + row.snippet + "</span>"
+              : row.meta
+              ? '<span class="palette__item-snippet">' + escapeHtml(row.meta) + "</span>"
+              : "") +
+            "</span></div>";
+          index += 1;
+        });
+      });
+      results.innerHTML = html;
+      items = Array.prototype.slice.call(results.querySelectorAll(".palette__item"));
+      active = 0;
+      highlight();
+    }
+
+    function highlight() {
+      items.forEach(function (el, i) {
+        el.classList.toggle("is-active", i === active);
+        if (i === active) {
+          el.scrollIntoView({ block: "nearest" });
+        }
+      });
+    }
+
+    function go(index) {
+      const item = items[index];
+      if (item) window.location.href = item.getAttribute("data-url");
+    }
+
+    function load(query) {
+      if (controller) controller.abort();
+      controller = new AbortController();
+      fetch(endpoint + "?q=" + encodeURIComponent(query), {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+        signal: controller.signal,
+      })
+        .then(function (response) {
+          if (!response.ok) throw new Error("请求失败");
+          return response.json();
+        })
+        .then(render)
+        .catch(function (error) {
+          if (error.name === "AbortError") return;
+          results.innerHTML = '<div class="palette__empty">搜索服务暂时不可用，请稍后再试。</div>';
+        });
+    }
+
+    function schedule() {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        load(input.value.trim());
+      }, 160);
+    }
+
+    document.addEventListener("keydown", function (event) {
+      const isShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
+      if (isShortcut) {
+        event.preventDefault();
+        isOpen() ? close() : open();
+        return;
+      }
+      if (!isOpen()) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        if (items.length) {
+          active = (active + 1) % items.length;
+          highlight();
+        }
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        if (items.length) {
+          active = (active - 1 + items.length) % items.length;
+          highlight();
+        }
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        go(active);
+      }
+    });
+
+    input.addEventListener("input", schedule);
+    results.addEventListener("click", function (event) {
+      const item = event.target.closest(".palette__item");
+      if (item) window.location.href = item.getAttribute("data-url");
+    });
+    palette.querySelector("[data-palette-close]").addEventListener("click", close);
+    document.querySelectorAll("[data-palette-open]").forEach(function (trigger) {
+      trigger.addEventListener("click", function (event) {
+        event.preventDefault();
+        open();
+      });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", initPalette);
+})();

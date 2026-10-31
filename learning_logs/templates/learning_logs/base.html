@@ -70,21 +70,16 @@
           </a>
         </nav>
 
-        <form
+        <button
+          type="button"
           class="header__search"
-          action="{% url 'learning_logs:search' %}"
-          method="get"
-          role="search"
+          data-palette-open
+          aria-label="打开全局搜索"
         >
           <svg width="15" height="15" aria-hidden="true"><use href="#i-search" /></svg>
-          <input
-            type="search"
-            name="q"
-            placeholder="搜索你的笔记…"
-            aria-label="搜索主题或笔记"
-            value="{{ request.GET.q|default:'' }}"
-          />
-        </form>
+          <span>搜索笔记…</span>
+          <kbd style="margin-left: auto">⌘K</kbd>
+        </button>
         {% endif %}
 
         <div class="header__actions">
@@ -157,9 +152,7 @@
           <a href="{% url 'learning_logs:flashcards' %}">闪卡复习</a>
           <a href="{% url 'analytics:dashboard' %}">学习分析</a>
           <a href="{% url 'learning_logs:goals' %}">学习目标</a>
-          <form action="{% url 'learning_logs:search' %}" method="get" class="mt-2">
-            <input class="input" type="search" name="q" placeholder="搜索笔记…" />
-          </form>
+          <a href="#" data-palette-open>搜索笔记</a>
         </div>
       </div>
       {% endif %}
@@ -179,6 +172,31 @@
     <main class="page">
       <div class="container">{% block content %}{% endblock %}</div>
     </main>
+
+
+    {% if user.is_authenticated %}
+    <div class="palette" id="palette" hidden>
+      <div class="palette__backdrop" data-palette-close></div>
+      <div class="palette__panel" role="dialog" aria-modal="true" aria-label="全局搜索">
+        <div class="palette__input">
+          <svg width="17" height="17"><use href="#i-search" /></svg>
+          <input
+            id="palette-input"
+            type="text"
+            placeholder="搜索主题、笔记，或跳转到功能页…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <kbd>Esc</kbd>
+        </div>
+        <div class="palette__results" id="palette-results"></div>
+        <div class="palette__foot">
+          <span>↑ ↓ 选择 · Enter 打开</span>
+          <span>{{ user.username|default:"未登录" }}</span>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <footer class="footer">
       <div class="container footer__inner">
