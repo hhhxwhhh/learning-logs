@@ -34,6 +34,7 @@ from .services import (
     stats,
     tags,
     timeline,
+    todos,
 )
 
 
@@ -1189,6 +1190,8 @@ class SmokeTests(BaseTestCase):
         "/notifications/",
         "/features/",
         "/timeline/",
+        "/insights/",
+        "/todos/",
         "/api/docs/",
         "/settings/api/",
         "/weekly/",
@@ -1503,3 +1506,97 @@ class InsightsTests(BaseTestCase):
         data = insights.build(self.alice)
         hour_card = next(card for card in data["cards"] if card["title"] == "黄金时段")
         self.assertEqual(hour_card["value"], "暂无数据")
+
+
+class TodoTests(BaseTestCase):
+    """待办清单：解析、汇总、勾选回写与越权。"""
+
+    def _write_entry(self, text):
+        return Entry.objects.create(topic=self.topic, text=text)
+
+    def test_todos_page(self):
+        response = self.client.get(reverse("learning_logs:todos"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "待办清单")
+
+    def test_extract_reads_markdown_checkboxes(self):
+        self._write_entry("计划：\n\n- [ ] 看完第三章\n- [x] 整理错题\n1. [ ] 做一套题")
+        rows = todos.scan(self.alice)
+        self.assertEqual(len(rows), 3)
+        summary = todos.summarize(rows)
+        self.assertEqual(summary["open"], 2)
+        self.assertEqual(summary["done"], 1)
+        self.assertEqual(summary["rate"], 33)
+
+    def test_todos_page_lists_open_items(self):
+        self._write_entry("- [ ] 还没做的事\n- [x] 已经做完的")
+        response = self.client.get(reverse("learning_logs:todos"))
+        self.assertContains(response, "还没做的事")
+        self.assertNotContains(response, "已经做完的")
+
+    def test_status_filter_shows_done_only(self):
+        self._write_entry("- [ ] 还没做的事\n- [x] 已经做完的")
+        response = self.client.get(reverse("learning_logs:todos"), {"status": "done"})
+        self.assertContains(response, "已经做完的")
+        self.assertNotContains(response, "还没做的事")
+
+    def test_toggle_writes_back_to_entry(self):
+        entry = self._write_entry("- [ ] 待办 A\n- [ ] 待办 B")
+        response = self.client.post(
+            reverse("learning_logs:toggle_todo", args=[entry.id]),
+            {"index": "1"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content)
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["done"])
+        entry.refresh_from_db()
+        self.assertIn("- [x] 待办 B", entry.text)
+        self.assertIn("- [ ] 待办 A", entry.text)
+
+    def test_toggle_leaves_revision(self):
+        entry = self._write_entry("- [ ] 待办 A")
+        self.client.post(
+            reverse("learning_logs:toggle_todo", args=[entry.id]),
+            {"index": "0"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(entry.revisions.count(), 1)
+        self.assertIn("- [ ] 待办 A", entry.revisions.first().text)
+
+    def test_toggle_requires_valid_index(self):
+        entry = self._write_entry("- [ ] 待办 A")
+        response = self.client.post(
+            reverse("learning_logs:toggle_todo", args=[entry.id]),
+            {"index": "99"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_toggle_is_user_scoped(self):
+        entry = self._write_entry("- [ ] 私有待办")
+        self.client.force_login(self.bob)
+        response = self.client.post(
+            reverse("learning_logs:toggle_todo", args=[entry.id]),
+            {"index": "0"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 404)
+        entry.refresh_from_db()
+        self.assertIn("- [ ] 私有待办", entry.text)
+
+    def test_todos_is_user_scoped(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        Entry.objects.create(topic=bob_topic, text="- [ ] Bob 的待办")
+        response = self.client.get(reverse("learning_logs:todos"))
+        self.assertNotContains(response, "Bob 的待办")
+
+    def test_group_by_topic(self):
+        self._write_entry("- [ ] 同一主题下的待办\n- [ ] 另一条")
+        other = Topic.objects.create(text="另一个主题", owner=self.alice)
+        Entry.objects.create(topic=other, text="- [ ] 别的主题待办")
+        groups = todos.group_by_topic(todos.scan(self.alice))
+        self.assertEqual(len(groups), 2)
+        counts = sorted(group["total"] for group in groups)
+        self.assertEqual(counts, [1, 2])

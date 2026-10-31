@@ -449,6 +449,9 @@
     m: "/features/",
     u: "/accounts/profile/",
     s: "/tags/",
+    l: "/timeline/",
+    j: "/insights/",
+    k: "/todos/",
   };
 
   var pending = false;

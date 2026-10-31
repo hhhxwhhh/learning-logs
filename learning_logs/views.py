@@ -54,6 +54,7 @@ from .services import search as search_service
 from .services import stats
 from .services import tags as tags_service
 from .services import timeline as timeline_service
+from .services import todos as todos_service
 from .utils.markdown import render_markdown
 
 logger = logging.getLogger(__name__)
@@ -708,6 +709,8 @@ FEATURE_GROUPS = [
              "desc": "到期复习、连续中断与目标临期提醒"},
             {"name": "学习时间线", "url": "/timeline/", "icon": "i-clock", "key": "l",
              "desc": "按月回看笔记、卡片与投入时长"},
+            {"name": "待办清单", "url": "/todos/", "icon": "i-check", "key": "k",
+             "desc": "汇总笔记里的 - [ ] 待办，勾选即写回原文"},
         ],
     },
     {
@@ -749,6 +752,7 @@ QUICK_ACTIONS = [
     {"label": "导入中心", "url": "/import/", "keywords": ["导入", "anki", "批量", "import"]},
     {"label": "学习时间线", "url": "/timeline/", "keywords": ["时间线", "timeline", "历史", "回顾"]},
     {"label": "学习洞察", "url": "/insights/", "keywords": ["洞察", "insight", "建议", "效率"]},
+    {"label": "待办清单", "url": "/todos/", "keywords": ["待办", "todo", "清单", "checklist"]},
 ]
 
 
@@ -1413,3 +1417,58 @@ def insights(request):
         "learning_logs/insights.html",
         insights_service.build(request.user),
     )
+
+
+@login_required
+def todos(request):
+    """待办清单：把散落在各篇笔记里的 `- [ ]` 汇总到一页。
+
+    只做「读」，勾选由 toggle_todo 回写笔记正文完成。
+    """
+    status = request.GET.get("status", "open")
+    if status not in {"open", "done", "all"}:
+        status = "open"
+
+    rows = todos_service.scan(request.user)
+    if status == "open":
+        visible = [row for row in rows if not row["done"]]
+    elif status == "done":
+        visible = [row for row in rows if row["done"]]
+    else:
+        visible = rows
+
+    return render(
+        request,
+        "learning_logs/todos.html",
+        {
+            "status": status,
+            "groups": todos_service.group_by_topic(visible),
+            "summary": todos_service.summarize(rows),
+            "shown": len(visible),
+        },
+    )
+
+
+@login_required
+@require_POST
+def toggle_todo(request, entry_id):
+    """勾选 / 取消勾选一条待办，改动会写回笔记并留一份历史版本。"""
+    entry = get_object_or_404(Entry, id=entry_id, topic__owner=request.user)
+    raw = (request.POST.get("index") or "").strip()
+    if not raw.isdigit():
+        return JsonResponse({"ok": False, "error": "待办序号不合法。"}, status=400)
+
+    result = todos_service.toggle(entry, int(raw))
+    if result is None:
+        return JsonResponse({"ok": False, "error": "没找到这条待办。"}, status=404)
+
+    snapshot_entry(entry, request.user)
+    entry.save()
+
+    wants_json = request.headers.get("x-requested-with") == "XMLHttpRequest"
+    if not wants_json:
+        messages.success(request, "已更新待办状态。")
+        return redirect("learning_logs:todos")
+
+    remaining = todos_service.summarize(todos_service.scan(request.user))
+    return JsonResponse({"ok": True, "done": result["done"], "open": remaining["open"]})

@@ -1,0 +1,98 @@
+{% extends "learning_logs/base.html" %}
+{% load static ll_extras %}
+
+{% block title %}待办清单 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Todos</div>
+    <h1>待办清单</h1>
+    <p>笔记里写的 <code>- [ ]</code> 会自动汇总到这里，勾一下就写回原笔记。</p>
+  </div>
+  <div class="cluster" role="group" aria-label="筛选状态">
+    <a class="btn btn--sm {% if status == 'open' %}btn--primary{% else %}btn--ghost{% endif %}" href="?status=open">未完成 {{ summary.open }}</a>
+    <a class="btn btn--sm {% if status == 'done' %}btn--primary{% else %}btn--ghost{% endif %}" href="?status=done">已完成 {{ summary.done }}</a>
+    <a class="btn btn--sm {% if status == 'all' %}btn--primary{% else %}btn--ghost{% endif %}" href="?status=all">全部 {{ summary.total }}</a>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">待办总数</span>
+    <span class="metric__value">{{ summary.total }}</span>
+    <span class="metric__hint">散落在所有笔记里</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">待处理</span>
+    <span class="metric__value" id="todo-open">{{ summary.open }}</span>
+    <span class="metric__hint">勾选后即时更新</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">已完成</span>
+    <span class="metric__value">{{ summary.done }}</span>
+    <span class="metric__hint">写作时勾掉的条目</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">完成率</span>
+    <span class="metric__value">{{ summary.rate }}%</span>
+    <span class="progress" title="完成率"><span class="progress__bar" style="width: {{ summary.rate }}%"></span></span>
+  </div>
+</div>
+
+{% if groups %}
+<div class="stack">
+  {% for group in groups %}
+  <section class="card">
+    <div class="card__head">
+      <h3>{{ group.topic_text }}</h3>
+      <div class="cluster">
+        <span class="badge badge--outline">{{ group.done }}/{{ group.total }} 已完成</span>
+        <a class="btn btn--xs btn--ghost" href="{% url 'learning_logs:topic' group.topic_id %}">看笔记</a>
+      </div>
+    </div>
+    <div class="card__body">
+      <ul class="todo-list">
+        {% for item in group.items %}
+        <li class="todo {% if item.done %}todo--done{% endif %}" data-entry="{{ item.entry_id }}" data-index="{{ item.index }}">
+          <button
+            type="button"
+            class="todo__check"
+            data-toggle-todo
+            data-url="{% url 'learning_logs:toggle_todo' item.entry_id %}"
+            data-index="{{ item.index }}"
+            aria-pressed="{{ item.done|yesno:'true,false' }}"
+            aria-label="{% if item.done %}取消完成{% else %}标记完成{% endif %}：{{ item.text }}">
+            <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+          </button>
+          <span class="todo__text">{{ item.text|default:"（空条目）" }}</span>
+          <a class="todo__source" href="{% url 'learning_logs:topic' item.topic_id %}#entry-{{ item.entry_id }}">{{ item.date_added|date:"n月j日" }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+  <p class="empty__title">这里还是空的</p>
+  <p>在任意笔记里写一行 <code>- [ ] 要做的事</code>，它就会出现在这里。</p>
+  <a class="btn btn--primary btn--sm" href="{% url 'learning_logs:new_topic' %}">先建一个主题</a>
+</div>
+{% endif %}
+
+<div class="card mt-3">
+  <div class="card__head"><h3>怎么用</h3></div>
+  <div class="card__body stack-sm">
+    <p>待办就存在笔记正文中：</p>
+    <pre class="code-sample">- [ ] 看完第三章并做练习
+- [x] 整理错题本</pre>
+    <p>勾选状态会写回那篇笔记，并在版本历史里留一份，随时可以回滚。</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/todos.js' %}" defer></script>
+{% endblock %}

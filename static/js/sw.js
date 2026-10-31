@@ -7,6 +7,7 @@ const PRECACHE = [
   "/static/js/editor.js?v=1",
   "/static/js/focus.js?v=1",
   "/static/js/templates_picker.js?v=1",
+  "/static/js/todos.js?v=1",
   "/static/manifest.webmanifest",
   "/static/icons/icon-192.png",
 ];

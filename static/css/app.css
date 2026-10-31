@@ -2821,6 +2821,77 @@
     box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
   }
 
+  /* 待办清单 ------------------------------------------------------------ */
+  .todo-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .todo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: var(--radius-sm, 8px);
+    transition: background 0.15s ease;
+  }
+
+  .todo:hover {
+    background: color-mix(in oklab, var(--accent) 7%, transparent);
+  }
+
+  .todo__check {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin-top: 0.05rem;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    border: 1.6px solid var(--border);
+    background: var(--surface);
+    color: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .todo__check:hover {
+    border-color: var(--accent);
+    color: color-mix(in oklab, var(--accent) 45%, transparent);
+  }
+
+  .todo__check[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .todo__check .icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .todo__text {
+    flex: 1;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+
+  .todo--done .todo__text {
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+
+  .todo__source {
+    flex: none;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
 /* --------------------------------------------------------------------------
    工具类
    -------------------------------------------------------------------------- */
