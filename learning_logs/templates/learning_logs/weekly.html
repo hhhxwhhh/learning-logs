@@ -1,0 +1,152 @@
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
+
+{% block title %}学习周报 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">
+      {{ week_start|date:"Y年n月j日" }} - {{ week_end|date:"n月j日" }}{% if is_current %} · 本周{% endif %}
+    </div>
+    <h1>学习周报</h1>
+    <p>把一周的投入摊开看：哪些地方在增长，哪些地方停了。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost btn--sm" href="{% url 'learning_logs:weekly_report' %}?week={{ prev_week|date:'Y-m-d' }}">
+      ← 上一周
+    </a>
+    {% if can_go_next %}
+    <a class="btn btn--ghost btn--sm" href="{% url 'learning_logs:weekly_report' %}?week={{ next_week|date:'Y-m-d' }}">
+      下一周 →
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">本周投入</span>
+    <span class="metric__value">{{ data.week_minutes|dur }}</span>
+    <span class="metric__hint">
+      {% if data.delta > 0 %}比上周多 {{ data.delta }} 分钟{% elif data.delta < 0 %}比上周少 {{ data.delta|cut:"-" }} 分钟{% else %}与上周持平{% endif %}
+    </span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">新增笔记</span>
+    <span class="metric__value">{{ data.entry_count }}<small>条</small></span>
+    <span class="metric__hint">{{ data.completed_entries }} 条标记为已掌握</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">复习闪卡</span>
+    <span class="metric__value">{{ data.reviewed_cards }}<small>张</small></span>
+    <span class="metric__hint">{{ data.session_count }} 次计时会话</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">涉及主题</span>
+    <span class="metric__value">{{ data.top_topics|length }}<small>个</small></span>
+    <span class="metric__hint">新增主题 {{ data.new_topics|length }} 个</span>
+  </div>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>每日投入</h3>
+        <span class="tiny muted">悬停查看分钟数</span>
+      </div>
+      <div class="card__body">
+        <div class="bars" style="height: 150px">
+          {% for day in data.days %}
+          <div class="bars__item" title="{{ day.date }} · {{ day.minutes }} 分钟">
+            <div
+              class="bars__bar"
+              style="height: {{ day.pct }}%"
+              data-empty="{% if day.minutes %}false{% else %}true{% endif %}"
+            ></div>
+            <span class="bars__label">{{ day.label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>AI 复盘</h3>
+        {% if saved %}
+        <span class="tiny muted">{{ saved.created_at|date:"n月j日 H:i" }} 生成 · {{ saved.model_name }}</span>
+        {% endif %}
+      </div>
+      <div class="card__body">
+        {% if summary_html %}
+        <div class="prose">{{ summary_html|safe }}</div>
+        {% else %}
+        <div class="empty" style="padding: 2rem 1rem">
+          <div class="empty__icon"><svg><use href="#i-spark" /></svg></div>
+          <h3>还没有这一周的复盘</h3>
+          <p>AI 会基于上面的真实数据写一段回顾与建议，不会编造细节。</p>
+        </div>
+        {% endif %}
+      </div>
+      <div class="card__foot" style="display: flex; gap: 0.6rem; align-items: center; justify-content: space-between; flex-wrap: wrap">
+        <form method="post" action="{% url 'learning_logs:weekly_generate' %}" class="row" style="gap: 0.5rem">
+          {% csrf_token %}
+          <input type="hidden" name="week" value="{{ week_start|date:'Y-m-d' }}" />
+          {% if models %}
+          <select class="select" name="model" style="width: auto; padding: 0.25rem 0.45rem; font-size: 0.78rem">
+            {% for model in models %}
+            <option value="{{ model.id }}">{{ model.name }}</option>
+            {% endfor %}
+          </select>
+          {% endif %}
+          <button class="btn btn--primary btn--sm" type="submit">
+            {% if summary_html %}重新生成{% else %}生成本周复盘{% endif %}
+          </button>
+        </form>
+        <span class="tiny muted">需要先在 .env 中配置模型</span>
+      </div>
+    </section>
+  </div>
+
+  <aside class="stack">
+    <section class="card">
+      <div class="card__head"><h3>本周主题</h3></div>
+      {% if data.top_topics %}
+      <div class="list">
+        {% for row in data.top_topics %}
+        <a class="list__item list__item--link" href="{% url 'learning_logs:topic' row.id %}">
+          <div class="list__main">
+            <span class="list__title">{{ row.text }}</span>
+            <span class="list__meta">{{ row.count }} 条记录</span>
+          </div>
+          <svg width="16" height="16" class="muted"><use href="#i-arrow-right" /></svg>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card__body muted small">这周还没有写字。</div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="card__head"><h3>规则建议</h3></div>
+      <div class="card__body stack-sm">
+        {% for tip in suggestions %}
+        <div class="panel small">{{ tip }}</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if data.overdue_goals %}
+    <div class="panel small">
+      <strong class="strong">逾期目标</strong>
+      <ul class="mt-1" style="padding-left: 1.1rem">
+        {% for goal in data.overdue_goals %}<li>{{ goal }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

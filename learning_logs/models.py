@@ -273,6 +273,28 @@ class ChatMessage(models.Model):
         return f"{self.role}: {self.content[:40]}"
 
 
+class WeeklyReport(models.Model):
+    """一周学习总结，可由 AI 生成并保存。"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="weekly_reports"
+    )
+    week_start = models.DateField("周一日期")
+    summary = models.TextField("总结", blank=True)
+    stats = models.JSONField("统计数据", default=dict, blank=True)
+    model_name = models.CharField("生成模型", max_length=80, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("user", "week_start")]
+        ordering = ["-week_start"]
+        verbose_name = "学习周报"
+        verbose_name_plural = "学习周报"
+
+    def __str__(self):
+        return f"{self.user} · {self.week_start:%Y-%m-%d} 周报"
+
+
 def default_review_date():
     """新卡默认当天可复习，先学一遍再进入间隔队列。"""
     return timezone.localdate()

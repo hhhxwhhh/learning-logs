@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import ChatSession, Entry, Flashcard, LearningPath, Topic
-from .services import export, garden, search, stats
+from .services import export, garden, report, search, stats
 
 
 class FakeProvider:
@@ -397,3 +397,46 @@ class ExportImportTests(BaseTestCase):
         response = self.client.get(reverse("learning_logs:data_tools"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "数据与备份")
+
+
+class WeeklyReportTests(BaseTestCase):
+    def test_week_start_is_monday(self):
+        start = report.week_start_of()
+        self.assertEqual(start.weekday(), 0)
+
+    def test_collect_returns_seven_days(self):
+        data = report.collect(self.alice, report.week_start_of())
+        self.assertEqual(len(data["days"]), 7)
+        self.assertGreaterEqual(data["week_minutes"], 5)
+        self.assertEqual(data["entry_count"], 1)
+
+    def test_suggestions_are_rule_based(self):
+        data = report.collect(self.alice, report.week_start_of())
+        tips = report.suggestions(data)
+        self.assertTrue(tips)
+        self.assertTrue(all(isinstance(tip, str) for tip in tips))
+
+    def test_generate_saves_report(self):
+        with patch("learning_logs.ai.service.get_provider", return_value=FakeProvider()):
+            with patch("learning_logs.services.report.get_provider", return_value=FakeProvider()):
+                saved = report.generate(self.alice, report.week_start_of())
+        self.assertTrue(saved.summary)
+        self.assertEqual(saved.week_start.weekday(), 0)
+        self.assertEqual(saved.stats["entry_count"], 1)
+
+    def test_weekly_page(self):
+        response = self.client.get(reverse("learning_logs:weekly_report"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "学习周报")
+        self.assertContains(response, "每日投入")
+
+    def test_generate_endpoint_handles_ai_error(self):
+        with patch(
+            "learning_logs.services.report.get_provider",
+            side_effect=Exception("boom"),
+        ):
+            response = self.client.post(
+                reverse("learning_logs:weekly_generate"),
+                {"week": report.week_start_of().isoformat()},
+            )
+        self.assertEqual(response.status_code, 302)

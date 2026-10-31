@@ -38,6 +38,9 @@ urlpatterns = [
     path("steps/<int:step_id>/", views.step_detail, name="step_detail"),
     path("steps/<int:step_id>/toggle-completion/", views.toggle_step_completion, name="toggle_step_completion"),
     path("resources/<int:resource_id>/toggle-completion/", views.toggle_resource_completion, name="toggle_resource_completion"),
+    # 学习周报
+    path("weekly/", views.weekly_report, name="weekly_report"),
+    path("weekly/generate/", views.weekly_report_generate, name="weekly_generate"),
     # 数据导出与导入
     path("data/", views.data_tools, name="data_tools"),
     path("data/export/notes/", views.export_notes, name="export_notes"),
