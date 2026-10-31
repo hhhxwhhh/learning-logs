@@ -14,6 +14,26 @@
   </a>
 </div>
 
+<section class="card mb-3">
+  <div class="card__body">
+    <form method="post" action="{% url 'learning_logs:ai_generate_path' %}" class="row" style="align-items: stretch">
+      {% csrf_token %}
+      <input
+        class="input"
+        name="goal"
+        required
+        maxlength="200"
+        placeholder="描述你的目标，例如：三个月内能独立完成一个 Django 项目"
+        style="flex: 1; min-width: 240px"
+      />
+      <button class="btn btn--primary" type="submit">
+        <svg width="16" height="16"><use href="#i-spark" /></svg>AI 生成路径
+      </button>
+    </form>
+    <p class="hint mt-1">AI 会把目标拆成 3-6 个循序渐进的主题步骤，并自动创建对应的主题。</p>
+  </div>
+</section>
+
 {% if paths %}
 <div class="grid">
   {% for path in paths %}

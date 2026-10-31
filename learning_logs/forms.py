@@ -102,30 +102,3 @@ class StepResourceForm(forms.ModelForm):
             "resource_type": forms.Select(attrs={"class": "input"}),
             "notes": forms.Textarea(attrs={"class": TEXTAREA_CLASS, "rows": 3}),
         }
-
-
-class AIQuestionForm(forms.Form):
-    """AI 提问表单"""
-
-    question = forms.CharField(
-        label="你的问题",
-        max_length=2000,
-        widget=forms.Textarea(
-            attrs={
-                "class": TEXTAREA_CLASS,
-                "rows": 2,
-                "placeholder": "就这些笔记提问，例如：帮我梳理这三个概念的差异",
-            }
-        ),
-    )
-
-
-class AIFeatureForm(forms.Form):
-    """一键生成：摘要 / 测验 / 学习建议"""
-
-    FEATURE_CHOICES = [
-        ("summary", "主题摘要"),
-        ("quiz", "自测题"),
-        ("recommendation", "下一步建议"),
-    ]
-    feature_type = forms.ChoiceField(choices=FEATURE_CHOICES, label="选择功能")

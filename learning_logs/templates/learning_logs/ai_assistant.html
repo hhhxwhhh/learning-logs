@@ -1,552 +1,337 @@
-{% extends 'learning_logs/base.html' %} 
-{% load static %} 
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
 
-{% block page_header %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <h1 class="display-5 fw-bold text-primary m-0">AI Learning Assistant</h1>
-    <p class="text-muted">
-      <a href="{% url 'learning_logs:topic' topic.id %}">{{ topic.text }}</a> -
-      Get AI help with your studies
-    </p>
-  </div>
-  <a
-    href="{% url 'learning_logs:topic' topic.id %}"
-    class="btn btn-outline-primary"
-  >
-    <i class="fas fa-arrow-left me-2"></i>Back to Topic
-  </a>
-</div>
-{% endblock %}
+{% block title %}AI 助教 · {{ topic.text }}{% endblock %}
 
 {% block content %}
-<div class="row g-4">
-  <!-- Left Column: Input Forms -->
-  <div class="col-md-5">
-    <!-- AI Question Form -->
-    <div class="card shadow-sm mb-4">
-      <div class="card-header bg-white d-flex align-items-center">
-        <i class="fas fa-question-circle text-primary me-2"></i>
-        <h5 class="mb-0">Ask AI Assistant</h5>
-      </div>
-      <div class="card-body">
-        <form id="ai-question-form" method="post">
-          {% csrf_token %}
-          <div class="mb-3">
-            {{ question_form.question.label_tag }} 
-            {{ question_form.question }}
-            <div class="form-text">Ask any question about your topic content</div>
-          </div>
-
-          <!-- Model Selection Dropdown -->
-          <div class="mb-3">
-            <label for="model" class="form-label">Select AI Model:</label>
-            <select id="model" name="model" class="form-select">
-              {% for model in available_models %}
-                <option value="{{ model.id }}" {% if model.id == selected_model %}selected{% endif %}>
-                  {{ model.name }}
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <button type="submit" name="submit_question" id="submit-question" class="btn btn-primary">
-            <i class="fas fa-paper-plane me-2"></i>Submit Question
-          </button>
-        </form>
-      </div>
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">
+      <a href="{% url 'learning_logs:topic' topic.id %}">{{ topic.text }}</a> · AI 助教
     </div>
-
-    <!-- AI Features Form -->
-    <div class="card shadow-sm">
-      <div class="card-header bg-white d-flex align-items-center">
-        <i class="fas fa-magic text-primary me-2"></i>
-        <h5 class="mb-0">Learning Tools</h5>
-      </div>
-      <div class="card-body">
-        <form id="ai-feature-form" method="post">
-          {% csrf_token %}
-          <div class="mb-4">
-            <label class="form-label mb-2">Select Tool:</label>
-            <div class="d-flex flex-column gap-3">
-              {% for radio in feature_form.feature_type %}
-              <div class="form-check">
-                {{ radio.tag }}
-                <label class="form-check-label" for="{{ radio.id_for_label }}">
-                  <strong>{{ radio.choice_label }}</strong>
-                  {% if radio.choice_value == 'summary' %}
-                    <div class="form-text">Generate a comprehensive summary of your topic</div>
-                  {% elif radio.choice_value == 'quiz' %}
-                    <div class="form-text">Create a quiz to test your knowledge</div>
-                  {% elif radio.choice_value == 'recommendation' %}
-                    <div class="form-text">Get personalized learning suggestions</div>
-                  {% endif %}
-                </label>
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-
-          <!-- Hidden model field that syncs with the question form -->
-          <input type="hidden" id="feature_model" name="model" value="{{ selected_model }}">
-
-          <button type="submit" name="submit_feature" id="submit-feature" class="btn btn-success w-100">
-            <i class="fas fa-bolt me-2"></i>Generate
-          </button>
-        </form>
-      </div>
-    </div>
+    <h1 style="font-size: 1.6rem">和 AI 一起复盘</h1>
+    <p>回答会基于该主题的 {{ entry_count }} 条笔记，模型不会凭空编造。</p>
   </div>
-
-  <!-- Right Column: Response and History -->
-  <div class="col-md-7">
-    <!-- AI Response Section -->
-    <div class="card shadow-sm mb-4">
-      <div class="card-header bg-white d-flex align-items-center">
-        <i class="fas fa-robot text-primary me-2"></i>
-        <h5 class="mb-0">AI Response</h5>
-      </div>
-      <div class="card-body">
-        <!-- Loading indicator -->
-        <div id="loading-indicator" class="text-center py-5 d-none">
-          <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
-          <p class="mt-3">AI is thinking...</p>
-        </div>
-
-        <!-- Response container -->
-        <div id="ai-response-container">
-          {% if answer %}
-          <div class="ai-response mb-4">
-            {% if last_interaction.interaction_type == 'question' %}
-            <div class="user-question mb-3 p-3 rounded bg-light border-start border-primary border-4">
-              <strong>Your Question:</strong>
-              <p class="mb-0 mt-2">{{ last_interaction.question }}</p>
-            </div>
-            {% endif %}
-
-            <div class="ai-answer">{{ answer|safe }}</div>
-          </div>
-          {% else %}
-          <div class="text-center py-5">
-            <div class="mb-3">
-              <i class="fas fa-robot fa-4x text-muted"></i>
-            </div>
-            <h5 class="mb-3">Ask me anything about this topic!</h5>
-            <p class="text-muted">
-              I can answer questions, generate summaries, create quizzes, or
-              recommend further learning resources based on your topic content.
-            </p>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <!-- Interaction History Section -->
-    <div class="card shadow-sm">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center">
-          <i class="fas fa-history text-primary me-2"></i>
-          <h5 class="mb-0">Interaction History</h5>
-        </div>
-        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#interactionsCollapse">
-          <i class="fas fa-eye me-1"></i>Show/Hide
-        </button>
-      </div>
-      <div class="collapse show" id="interactionsCollapse">
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Question/Request</th>
-                <th>Model</th>
-                <th>Date</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for interaction in interactions %}
-              <tr>
-                <td>
-                  {% if interaction.interaction_type == 'question' %}
-                  <span class="badge bg-primary">Question</span>
-                  {% elif interaction.interaction_type == 'summary' %}
-                  <span class="badge bg-success">Summary</span>
-                  {% elif interaction.interaction_type == 'quiz' %}
-                  <span class="badge bg-warning">Quiz</span>
-                  {% else %}
-                  <span class="badge bg-info">Recommendations</span>
-                  {% endif %}
-                </td>
-                <td>{{ interaction.question|truncatechars:40 }}</td>
-                <td><span class="badge bg-secondary">{{ interaction.model_used }}</span></td>
-                <td>{{ interaction.created_at|date:"M d, H:i" }}</td>
-                <td>
-                  <button class="btn btn-sm btn-outline-primary view-interaction" data-id="{{ interaction.id }}" data-bs-toggle="modal" data-bs-target="#interactionModal">
-                    <i class="fas fa-eye"></i>
-                  </button>
-                </td>
-              </tr>
-              {% empty %}
-              <tr>
-                <td colspan="5" class="text-center py-3">No interaction history yet</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+  <div class="cluster">
+    <label class="hint" for="model-select-head">模型</label>
+    <select class="select" id="model-select-head" style="width: auto" data-model-select>
+      {% for model in models %}
+      <option value="{{ model.id }}" {% if model.id == selected_model %}selected{% endif %}>
+        {{ model.name }}
+      </option>
+      {% endfor %}
+    </select>
   </div>
 </div>
 
-<!-- Interaction Details Modal -->
-<div class="modal fade" id="interactionModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Interaction Details</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
+<div class="chat-shell">
+  <aside class="chat-side">
+    <div class="chat-side__head stack-sm">
+      <form method="post" action="{% url 'learning_logs:ai_new_session' topic.id %}">
+        {% csrf_token %}
+        <button class="btn btn--primary btn--block btn--sm" type="submit">
+          <svg width="15" height="15"><use href="#i-plus" /></svg>新对话
+        </button>
+      </form>
+      <span class="tiny muted">该主题下的历史会话</span>
+    </div>
+    <div class="chat-side__list">
+      {% for item in sessions %}
+      <a
+        class="chat-side__item {% if item.id == session.id %}is-active{% endif %}"
+        href="{% url 'learning_logs:ai_assistant' topic.id %}?session={{ item.id }}"
+      >
+        <svg width="14" height="14"><use href="#i-message" /></svg>
+        <span class="truncate">{{ item.title }}</span>
+        <span class="tiny muted" style="margin-left: auto">{{ item.message_count }}</span>
+      </a>
+      {% empty %}
+      <p class="tiny muted" style="padding: 0.5rem">还没有会话</p>
+      {% endfor %}
+    </div>
+    <div class="chat-side__head" style="border-top: 1px solid var(--line); border-bottom: 0">
+      <p class="tiny muted" style="margin: 0">
+        上下文只包含本主题笔记，最多发送最近 40 条、约 6000 字。
+      </p>
+    </div>
+  </aside>
 
-      <!-- 添加主题信息 -->
-        <div class="mb-3">
-          <h6>Topic:</h6>
-          <p id="modal-topic" class="mb-2">Topic Name</p>
-        </div>
-        
-        <div class="mb-3">
-          <h6>Model:</h6>
-          <p id="modal-model" class="mb-2">
-            <span class="badge bg-secondary">Model Name</span>
-          </p>
-        </div>
-        <div class="mb-3">
-          <h6>Question:</h6>
-          <p id="modal-question" class="border-start border-4 ps-3 py-2 bg-light rounded">Question text</p>
-        </div>
-        <div>
-          <h6>Answer:</h6>
-          <div id="modal-response" class="markdown-content"></div>
+  <section class="chat-main">
+    <div class="chat-main__head">
+      <div style="min-width: 0">
+        <div class="strong truncate">{{ session.title }}</div>
+        <div class="tiny muted">
+          {{ session.messages.count }} 条消息 · 最后更新 {{ session.updated_at|date:"n月j日 H:i" }}
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      <div class="cluster" style="margin-left: auto">
+        <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:topic' topic.id %}">查看笔记</a>
+        <form
+          method="post"
+          action="{% url 'learning_logs:ai_delete_session' session.id %}"
+          data-confirm="删除后该会话的记录无法恢复，确定吗？"
+        >
+          {% csrf_token %}
+          <button class="btn btn--sm btn--ghost" type="submit" title="删除会话">
+            <svg width="14" height="14"><use href="#i-trash" /></svg>
+          </button>
+        </form>
       </div>
     </div>
-  </div>
+
+    <div class="chat-main__stream" id="chat-stream" aria-live="polite">
+      {% for message in messages %}
+      <div class="bubble {% if message.role == 'user' %}bubble--user{% else %}bubble--ai{% endif %}">
+        {% if message.role == 'user' %}
+        <div style="white-space: pre-wrap">{{ message.content }}</div>
+        {% else %}
+        <div class="prose">{{ message.content|markdown }}</div>
+        {% endif %}
+      </div>
+      {% empty %}
+      <div class="empty" style="padding: 2rem 1rem">
+        <div class="empty__icon"><svg><use href="#i-brain" /></svg></div>
+        <h3>从这个主题的笔记开始</h3>
+        <p>可以直接提问，也可以点下面的快捷动作，让 AI 先帮你理一遍。</p>
+        <div class="cluster" style="justify-content: center">
+          {% for action in quick_actions %}
+          <button class="btn btn--sm btn--soft" type="button" data-quick="{{ action.key }}">
+            {{ action.label }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="chat-composer">
+      <form id="chat-form">
+        <div class="chat-composer__box">
+          <textarea
+            id="chat-input"
+            rows="1"
+            data-autogrow
+            placeholder="就这些笔记提问，例如：帮我对比 QuerySet 和 list 的差异…"
+            maxlength="4000"
+          ></textarea>
+          <button class="btn btn--primary" id="chat-send" type="submit" aria-label="发送">
+            <svg width="16" height="16"><use href="#i-send" /></svg>
+          </button>
+        </div>
+        <div class="chat-toolbar">
+          <span>
+            <kbd>Enter</kbd> 发送 · <kbd>Shift</kbd> + <kbd>Enter</kbd> 换行
+          </span>
+          <span class="cluster">
+            <select class="select" data-model-select style="width: auto; padding: 0.2rem 0.4rem; font-size: 0.78rem">
+              {% for model in models %}
+              <option value="{{ model.id }}" {% if model.id == selected_model %}selected{% endif %}>
+                {{ model.name }}
+              </option>
+              {% endfor %}
+            </select>
+            <button class="btn btn--sm btn--ghost hidden" id="chat-stop" type="button">停止</button>
+          </span>
+        </div>
+      </form>
+    </div>
+  </section>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    // Form submission handling
-    const questionForm = document.getElementById("ai-question-form");
-    const featureForm = document.getElementById("ai-feature-form");
-    const responseContainer = document.getElementById("ai-response-container");
-    const loadingIndicator = document.getElementById("loading-indicator");
-    
-    // Add question form submission handler
-    if (questionForm) {
-      questionForm.addEventListener("submit", function (e) {
-        e.preventDefault();
-        submitAIRequest(this, "question");
+  (function () {
+    const streamEl = document.getElementById("chat-stream");
+    const form = document.getElementById("chat-form");
+    const input = document.getElementById("chat-input");
+    const sendBtn = document.getElementById("chat-send");
+    const stopBtn = document.getElementById("chat-stop");
+    const streamUrl = "{% url 'learning_logs:ai_stream' session.id %}";
+    const csrf = window.LL.csrfToken();
+    let controller = null;
+    let streaming = false;
+
+    function selectedModel() {
+      const el = document.querySelector("[data-model-select]");
+      return el ? el.value : "";
+    }
+
+    function scrollDown() {
+      streamEl.scrollTop = streamEl.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/[<>&]/g, function (c) {
+        return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
       });
     }
-    
-    // Add feature form submission handler
-    if (featureForm) {
-      featureForm.addEventListener("submit", function (e) {
-        e.preventDefault();
-        submitAIRequest(this, "feature");
-      });
+
+    function addUserBubble(text) {
+      const el = document.createElement("div");
+      el.className = "bubble bubble--user";
+      el.style.whiteSpace = "pre-wrap";
+      el.textContent = text;
+      streamEl.appendChild(el);
+      scrollDown();
     }
-    
-    // Handle AI request submission
-    function submitAIRequest(form, type) {
-      // Show loading indicator
-      loadingIndicator.classList.remove("d-none");
-      responseContainer.innerHTML = "";
-      
-      // Prepare form data
-      const formData = new FormData(form);
-      
-      // Add extra data based on form type
-      if (type === "question") {
-        formData.append("submit_question", "true");
-        formData.append("ajax_request", "true");
-        
-        // Disable submit button and show loading state
-        const button = document.getElementById("submit-question");
-        button.disabled = true;
-        button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
-      } else {
-        formData.append("submit_feature", "true");
-        formData.append("ajax_request", "true");
-        
-        // Disable submit button and show loading state
-        const button = document.getElementById("submit-feature");
-        button.disabled = true;
-        button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
-      }
-      
-      // Get CSRF token
-      const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]").value;
-      
-      // Send AJAX request
-      fetch(window.location.href, {
-        method: "POST",
-        body: formData,
-        headers: {
-          "X-CSRFToken": csrftoken,
-          "X-Requested-With": "XMLHttpRequest"
+
+    function addAiBubble() {
+      const wrap = document.createElement("div");
+      wrap.className = "bubble bubble--ai";
+      const body = document.createElement("div");
+      body.className = "prose";
+      body.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+      wrap.appendChild(body);
+      streamEl.appendChild(wrap);
+      scrollDown();
+      return { wrap: wrap, body: body, started: false };
+    }
+
+    function setStreaming(value) {
+      streaming = value;
+      sendBtn.classList.toggle("is-disabled", value);
+      stopBtn.classList.toggle("hidden", !value);
+    }
+
+    async function send(message, action) {
+      if (streaming) return;
+      const text = (message || "").trim();
+      if (!text && !action) return;
+
+      if (text) addUserBubble(text);
+      input.value = "";
+      input.style.height = "auto";
+
+      const bubble = addAiBubble();
+      controller = new AbortController();
+      setStreaming(true);
+
+      let buffer = "";
+
+      function handleEvent(block) {
+        if (!block.trim()) return;
+        const lines = block.split("\n");
+        let event = "message";
+        let data = "";
+        for (const line of lines) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) data += line.slice(5).trim();
         }
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error("Network response was not ok: " + response.statusText);
+        if (!data) return;
+        let payload = {};
+        try {
+          payload = JSON.parse(data);
+        } catch (e) {
+          return;
         }
-        return response.json();
-      })
-      .then(data => {
-        // Hide loading indicator
-        loadingIndicator.classList.add("d-none");
-        
-        // Reset button states
-        if (type === "question") {
-          const button = document.getElementById("submit-question");
-          button.disabled = false;
-          button.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Submit Question';
-        } else {
-          const button = document.getElementById("submit-feature");
-          button.disabled = false;
-          button.innerHTML = '<i class="fas fa-bolt me-2"></i>Generate';
-        }
-        
-        if (data.status === "success") {
-          // Show AI response
-          responseContainer.innerHTML = data.html_response;
-          
-          // If there's a new interaction, add it to the history table
-          if (data.update_interactions && data.new_interaction) {
-            updateInteractionsTable(data.new_interaction);
+
+        if (event === "delta") {
+          if (!bubble.started) {
+            bubble.body.innerHTML = "";
+            bubble.started = true;
           }
-          
-          // Scroll to response
-          responseContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-          // Show error message
-          responseContainer.innerHTML = `
-            <div class="alert alert-danger">
-              <i class="fas fa-exclamation-triangle me-2"></i>
-              ${data.message}
-            </div>
-          `;
-        }
-      })
-      .catch(error => {
-        // Hide loading indicator and show error
-        loadingIndicator.classList.add("d-none");
-        responseContainer.innerHTML = `
-          <div class="alert alert-danger">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            Error: ${error.message}
-          </div>
-        `;
-        
-        // Reset button states
-        if (type === "question") {
-          const button = document.getElementById("submit-question");
-          button.disabled = false;
-          button.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Submit Question';
-        } else {
-          const button = document.getElementById("submit-feature");
-          button.disabled = false;
-          button.innerHTML = '<i class="fas fa-bolt me-2"></i>Generate';
-        }
-        
-        console.error("Error:", error);
-      });
-    }
-    
-    // Update interaction history table
-    function updateInteractionsTable(interaction) {
-      const tableBody = document.querySelector(".table tbody");
-      if (!tableBody) return;
-      
-      // Remove "no interactions" row if it exists
-      const emptyRow = tableBody.querySelector("tr td[colspan='5']");
-      if (emptyRow) {
-        tableBody.innerHTML = '';
-      }
-      
-      // Create new row
-      const newRow = document.createElement("tr");
-      
-      // Set badge class
-      let badgeClass = "bg-primary";
-      let typeText = "Question";
-      
-      if (interaction.interaction_type === "summary") {
-        badgeClass = "bg-success";
-        typeText = "Summary";
-      } else if (interaction.interaction_type === "quiz") {
-        badgeClass = "bg-warning";
-        typeText = "Quiz";
-      } else if (interaction.interaction_type === "recommendation") {
-        badgeClass = "bg-info";
-        typeText = "Recommendations";
-      }
-      
-      // Add row content
-      newRow.innerHTML = `
-        <td>
-          <span class="badge ${badgeClass}">${typeText}</span>
-        </td>
-        <td>${interaction.question.length > 40 ? interaction.question.substring(0, 40) + "..." : interaction.question}</td>
-        <td><span class="badge bg-secondary">${interaction.model_used}</span></td>
-        <td>${new Date().toLocaleDateString('en-US', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</td>
-        <td>
-          <button class="btn btn-sm btn-outline-primary view-interaction" 
-                 data-id="${interaction.id}" 
-                 data-bs-toggle="modal" 
-                 data-bs-target="#interactionModal">
-            <i class="fas fa-eye"></i>
-          </button>
-        </td>
-      `;
-      
-      // Add to the top of the table
-      if (tableBody.firstChild) {
-        tableBody.insertBefore(newRow, tableBody.firstChild);
-      } else {
-        tableBody.appendChild(newRow);
-      }
-      
-      // Add event listener to the new button
-      attachInteractionViewHandlers();
-    }
-    
-    // Handle model selection change
-    document.getElementById('model').addEventListener('change', function() {
-      document.getElementById('feature_model').value = this.value;
-    });
-    
-    // View interaction details
-    function attachInteractionViewHandlers() {
-      document.querySelectorAll('.view-interaction').forEach(button => {
-        button.addEventListener('click', function() {
-          const interactionId = this.getAttribute('data-id');
-          fetch(`/interaction/${interactionId}/`)
-            .then(response => {
-              if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-              }
-              return response.json();
-            })
-            .then(data => {
-              document.getElementById('modal-question').textContent = data.question || "问题未提供";
-              document.getElementById('modal-response').innerHTML = data.response_html || data.response || "无回答内容";
-              document.getElementById('modal-model').innerHTML = 
-                `<span class="badge bg-secondary">${data.model_used || '默认模型'}</span>`;
-              // 如果有主题信息，则显示
-              if (data.topic) {
-                document.getElementById('modal-topic').textContent = data.topic;
-              } else {
-                document.getElementById('modal-topic').parentElement.style.display = 'none';
-              }
-            })
-            .catch(error => {
-              console.error("Error fetching interaction details:", error);
-              document.getElementById('modal-response').innerHTML = 
-                `<div class="alert alert-danger">
-                  <i class="fas fa-exclamation-circle me-2"></i>
-                  加载交互详情失败: ${error.message}
-                </div>`;
+          bubble.body.style.whiteSpace = "pre-wrap";
+          bubble.body.textContent += payload.text || "";
+          scrollDown();
+        } else if (event === "done") {
+          bubble.body.style.whiteSpace = "";
+          bubble.body.innerHTML = payload.html || bubble.body.textContent;
+          window.LL.enhanceCodeBlocks(bubble.body);
+          if (payload.title) {
+            document.querySelectorAll(".chat-side__item.is-active .truncate").forEach(function (el) {
+              el.textContent = payload.title;
             });
+          }
+          scrollDown();
+        } else if (event === "error") {
+          bubble.body.innerHTML =
+            '<div class="badge badge--rose">出错了</div><p class="small muted mt-1">' +
+            escapeHtml(payload.message || "未知错误") +
+            "</p>";
+        }
+      }
+
+      try {
+        const response = await fetch(streamUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrf,
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          body: JSON.stringify({ message: text, model: selectedModel(), action: action || null }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok || !response.body) {
+          let detail = "服务返回 " + response.status;
+          try {
+            const err = await response.json();
+            detail = err.error || detail;
+          } catch (e) {}
+          throw new Error(detail);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const result = await reader.read();
+          if (result.done) break;
+          buffer += decoder.decode(result.value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop();
+          parts.forEach(handleEvent);
+        }
+        if (buffer) handleEvent(buffer);
+      } catch (error) {
+        if (error.name === "AbortError") {
+          bubble.body.innerHTML += '<p class="tiny muted mt-1">（已停止生成）</p>';
+        } else {
+          bubble.body.innerHTML =
+            '<div class="badge badge--rose">连接失败</div><p class="small muted mt-1">' +
+            escapeHtml(error.message) +
+            "</p>";
+        }
+      } finally {
+        setStreaming(false);
+        controller = null;
+      }
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      send(input.value, null);
+    });
+
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        send(input.value, null);
+      }
+    });
+
+    stopBtn.addEventListener("click", function () {
+      if (controller) controller.abort();
+    });
+
+    document.querySelectorAll("[data-quick]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        send("", btn.getAttribute("data-quick"));
+      });
+    });
+
+    // 顶部与底部模型选择保持同步
+    const selects = document.querySelectorAll("[data-model-select]");
+    selects.forEach(function (el) {
+      el.addEventListener("change", function () {
+        selects.forEach(function (other) {
+          if (other !== el) other.value = el.value;
         });
       });
-    }
-    
-    // Initialize interaction view handlers
-    attachInteractionViewHandlers();
-  });
+    });
+
+    scrollDown();
+  })();
 </script>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-  .ai-response {
-    font-size: 0.95rem;
-  }
-
-  .ai-answer h1,
-  .ai-answer h2,
-  .ai-answer h3 {
-    font-size: 1.5rem;
-    margin-top: 1.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .ai-answer h4,
-  .ai-answer h5,
-  .ai-answer h6 {
-    font-size: 1.25rem;
-    margin-top: 1.25rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .ai-answer ul,
-  .ai-answer ol {
-    padding-left: 1.5rem;
-  }
-
-  .ai-answer pre {
-    background-color: #f8f9fa;
-    padding: 1rem;
-    border-radius: 0.25rem;
-    overflow: auto;
-  }
-
-  .ai-answer code {
-    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-      "Courier New", monospace;
-    font-size: 0.875rem;
-    color: #d63384;
-    word-wrap: break-word;
-  }
-
-  .ai-answer blockquote {
-    padding-left: 1rem;
-    border-left: 0.25rem solid #ced4da;
-    color: #6c757d;
-  }
-  
-  #loading-indicator {
-    transition: all 0.3s ease;
-  }
-  
-  .markdown-content {
-    overflow-wrap: break-word;
-  }
-  
-  .card {
-    transition: all 0.2s ease;
-  }
-  
-  .form-check {
-    padding: 0.75rem;
-    border: 1px solid #dee2e6;
-    border-radius: 0.25rem;
-  }
-  
-  .form-check:hover {
-    background-color: #f8f9fa;
-  }
-</style>
 {% endblock %}

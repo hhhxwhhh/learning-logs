@@ -224,31 +224,53 @@ class StepResource(models.Model):
         return self.title
 
 
-class AIInteraction(models.Model):
-    """历史 AI 交互记录（旧版数据结构，后续版本迁移到会话模型）。"""
+class ChatSession(models.Model):
+    """一次围绕某个主题的多轮 AI 对话。"""
 
-    INTERACTION_TYPES = [
-        ("question", "提问"),
-        ("summary", "摘要"),
-        ("quiz", "测验"),
-        ("recommendation", "建议"),
-    ]
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="chat_sessions"
+    )
+    topic = models.ForeignKey(
+        Topic, on_delete=models.CASCADE, null=True, blank=True, related_name="chat_sessions"
+    )
+    title = models.CharField("会话标题", max_length=120, default="新的对话")
+    model_name = models.CharField("模型", max_length=80, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, null=True, blank=True)
-    question = models.TextField("问题")
-    response = models.TextField("回答")
-    interaction_type = models.CharField("类型", max_length=20, choices=INTERACTION_TYPES)
-    model_used = models.CharField("模型", max_length=50, default="llama3")
+    class Meta:
+        ordering = ["-updated_at"]
+        verbose_name = "AI 会话"
+        verbose_name_plural = "AI 会话"
+
+    def __str__(self):
+        return self.title
+
+    def touch(self):
+        self.save(update_fields=["updated_at"])
+
+    def last_message(self):
+        return self.messages.last()
+
+
+class ChatMessage(models.Model):
+    """会话中的一条消息。"""
+
+    ROLE_CHOICES = [("user", "用户"), ("assistant", "助手"), ("system", "系统")]
+
+    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
+    role = models.CharField("角色", max_length=12, choices=ROLE_CHOICES)
+    content = models.TextField("内容")
+    model_name = models.CharField("模型", max_length=80, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-created_at"]
-        verbose_name = "AI 交互"
-        verbose_name_plural = "AI 交互"
+        ordering = ["created_at", "id"]
+        verbose_name = "AI 消息"
+        verbose_name_plural = "AI 消息"
 
     def __str__(self):
-        return f"{self.interaction_type}: {self.question[:50]}"
+        return f"{self.role}: {self.content[:40]}"
 
 
 def default_review_date():
