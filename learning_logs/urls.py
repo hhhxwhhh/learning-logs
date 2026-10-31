@@ -38,6 +38,8 @@ urlpatterns = [
     path("steps/<int:step_id>/", views.step_detail, name="step_detail"),
     path("steps/<int:step_id>/toggle-completion/", views.toggle_step_completion, name="toggle_step_completion"),
     path("resources/<int:resource_id>/toggle-completion/", views.toggle_resource_completion, name="toggle_resource_completion"),
+    # 学习花园
+    path("garden/", views.garden, name="garden"),
     # 闪卡复习
     path("flashcards/", views.flashcards, name="flashcards"),
     path("flashcards/review/", views.review, name="review"),

@@ -401,6 +401,8 @@
     font-weight: 700;
     letter-spacing: -0.02em;
     font-size: 1.02rem;
+    white-space: nowrap;
+    flex: 0 0 auto;
   }
 
   .brand__mark {
@@ -426,11 +428,13 @@
   .nav {
     display: none;
     align-items: center;
-    gap: 0.15rem;
+    gap: 0.1rem;
+    flex: 0 0 auto;
   }
 
   .nav__link {
-    padding: 0.45rem 0.75rem;
+    white-space: nowrap;
+    padding: 0.45rem 0.62rem;
     border-radius: 999px;
     font-size: 0.9rem;
     color: var(--ink-soft);
@@ -507,15 +511,27 @@
     font-size: 0.66rem;
   }
 
-  @media (min-width: 1080px) {
+  @media (min-width: 1320px) {
     .header__search {
       display: flex;
     }
   }
 
-  @media (max-width: 1080px) {
+  @media (max-width: 1320px) {
     .user-name {
       display: none;
+    }
+    .brand__sub {
+      display: none;
+    }
+  }
+
+  @media (max-width: 1080px) {
+    .nav {
+      display: none;
+    }
+    .nav-toggle {
+      display: grid;
     }
   }
 
@@ -1767,6 +1783,99 @@
     --btn-bg: #fff;
     --btn-ink: #1f1f2e;
     --btn-border: transparent;
+  }
+
+  /* 学习花园 · 知识树 ---------------------------------------------------- */
+  .tree {
+    width: 100%;
+    height: auto;
+    display: block;
+    max-height: 420px;
+  }
+
+  .garden-card .card__body {
+    background:
+      radial-gradient(60% 60% at 50% 100%, color-mix(in oklab, var(--teal) 10%, transparent), transparent 70%),
+      var(--surface);
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+
+  .tree__ground {
+    fill: color-mix(in oklab, var(--ink) 6%, transparent);
+  }
+
+  .tree__trunk {
+    fill: color-mix(in oklab, var(--ink) 26%, transparent);
+  }
+
+  .tree__branch {
+    color: var(--accent);
+    transition: opacity var(--transition);
+  }
+
+  .tree__branch.tone-1 {
+    color: var(--teal);
+  }
+  .tree__branch.tone-2 {
+    color: var(--amber);
+  }
+  .tree__branch.tone-3 {
+    color: var(--rose);
+  }
+
+  .tree__branch path {
+    fill: none;
+    stroke: currentcolor;
+    stroke-linecap: round;
+    opacity: 0.82;
+  }
+
+  .tree__canopy {
+    fill: currentcolor;
+    opacity: 0.12;
+    filter: blur(2px);
+  }
+
+  .tree__twig {
+    fill: none;
+    stroke: currentcolor;
+    stroke-linecap: round;
+    opacity: 0.45;
+  }
+
+  .tree__leaf {
+    fill: currentcolor;
+    opacity: 0.92;
+  }
+
+  .tree__seed circle {
+    fill: color-mix(in oklab, var(--accent) 55%, transparent);
+  }
+
+  .tree__seed path {
+    fill: none;
+    stroke: var(--teal);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    opacity: 0.85;
+  }
+
+  .tone-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex: 0 0 10px;
+  }
+
+  .tone-dot.tone-1 {
+    background: var(--teal);
+  }
+  .tone-dot.tone-2 {
+    background: var(--amber);
+  }
+  .tone-dot.tone-3 {
+    background: var(--rose);
   }
 
   /* 命令面板 ------------------------------------------------------------- */

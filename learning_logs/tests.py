@@ -1,7 +1,7 @@
 """学习日志核心功能测试。"""
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import ChatSession, Entry, Flashcard, LearningPath, Topic
-from .services import search, stats
+from .services import garden, search, stats
 
 
 class FakeProvider:
@@ -279,3 +279,51 @@ class SearchApiTests(BaseTestCase):
         self.assertEqual(len(data["entries"]), 2)  # 只有 alice 的两条
         for row in data["entries"]:
             self.assertNotIn("属于别人", row["snippet"])
+
+
+class GardenTests(BaseTestCase):
+    def test_stage_thresholds(self):
+        self.assertEqual(garden.stage_of(0)["name"], "种子")
+        self.assertEqual(garden.stage_of(1)["name"], "嫩芽")
+        self.assertEqual(garden.stage_of(6)["name"], "小树")
+        self.assertEqual(garden.stage_of(18)["name"], "大树")
+        self.assertEqual(garden.stage_of(45)["name"], "森林")
+        self.assertEqual(garden.stage_of(45)["next_name"], None)
+
+    def test_stage_progress_between_levels(self):
+        stage = garden.stage_of(3)  # 嫩芽(1) → 小树(6)
+        self.assertEqual(stage["progress"], 40)
+        self.assertEqual(stage["remaining"], 3)
+
+    def test_tree_has_branch_and_leaves(self):
+        Entry.objects.create(topic=self.topic, text="第二条")
+        tree = garden.tree_data(self.alice)
+        self.assertEqual(len(tree["branches"]), 1)
+        branch = tree["branches"][0]
+        self.assertTrue(branch["path"].startswith("M"))
+        self.assertGreaterEqual(len(branch["leaves"]), 2)
+        self.assertEqual(branch["entry_count"], 2)
+
+    def test_tree_limits_branches(self):
+        for index in range(10):
+            Topic.objects.create(text=f"主题 {index}", owner=self.alice)
+        self.assertEqual(len(garden.tree_data(self.alice, max_branches=5)["branches"]), 5)
+
+    def test_on_this_day_picks_previous_month(self):
+        import calendar
+
+        entry = Entry.objects.create(topic=self.topic, text="上个月的今天")
+        today = timezone.localdate()
+        year, month = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
+        day = min(today.day, calendar.monthrange(year, month)[1])
+        past = timezone.make_aware(datetime(year, month, day, 12, 0))
+        Entry.objects.filter(id=entry.id).update(date_added=past)
+
+        picked = garden.on_this_day(self.alice)
+        self.assertIn(entry.id, [item.id for item in picked])
+
+    def test_garden_page(self):
+        response = self.client.get(reverse("learning_logs:garden"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "学习花园")
+        self.assertContains(response, "知识树")

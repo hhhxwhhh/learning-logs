@@ -1,0 +1,163 @@
+{% extends "learning_logs/base.html" %}
+{% load humanize ll_extras %}
+
+{% block title %}学习花园 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Garden</div>
+    <h1>学习花园</h1>
+    <p>每一条笔记都会长成一片叶子；主题越多，树冠越宽。</p>
+  </div>
+  <div class="cluster">
+    <span class="badge badge--accent">{{ stage.name }}</span>
+    <a class="btn" href="{% url 'learning_logs:new_topic' %}">
+      <svg width="16" height="16"><use href="#i-plus" /></svg>种一棵新树
+    </a>
+  </div>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <section class="card garden-card">
+      <div class="card__head">
+        <h3>你的知识树</h3>
+        <span class="tiny muted">{{ overview.entry_count }} 片叶子 · {{ overview.topic_count }} 根枝干</span>
+      </div>
+      <div class="card__body">
+        <svg
+          class="tree"
+          viewBox="0 0 {{ tree.viewbox.width }} {{ tree.viewbox.height }}"
+          role="img"
+          aria-label="由你的学习主题构成的知识树"
+        >
+          <ellipse class="tree__ground" cx="{{ tree.trunk_x }}" cy="{{ tree.ground_y }}" rx="250" ry="26" />
+          <path class="tree__trunk" d="{{ tree.trunk }}" />
+
+          {% for branch in tree.branches %}
+          <g class="tree__branch tone-{{ branch.tone }}">
+            <title>{{ branch.topic.text }} · {{ branch.entry_count }} 条记录 · 完成 {{ branch.progress }}%</title>
+            {% for blob in branch.canopy %}
+            <circle cx="{{ blob.x }}" cy="{{ blob.y }}" r="{{ blob.r }}" class="tree__canopy" />
+            {% endfor %}
+            <path d="{{ branch.path }}" stroke-width="{{ branch.width }}" />
+            {% for twig in branch.twigs %}
+            <path class="tree__twig" d="{{ twig }}" stroke-width="1.6" />
+            {% endfor %}
+            {% for leaf in branch.leaves %}
+            <circle cx="{{ leaf.x }}" cy="{{ leaf.y }}" r="{{ leaf.r }}" class="tree__leaf" />
+            {% endfor %}
+          </g>
+          {% endfor %}
+
+          {% if not tree.branches %}
+          <g class="tree__seed">
+            <circle cx="{{ tree.seed.cx }}" cy="{{ tree.seed.cy }}" r="9" />
+            <path d="{{ tree.seed.stem }}" />
+            <path d="{{ tree.seed.leaf_left }}" />
+            <path d="{{ tree.seed.leaf_right }}" />
+          </g>
+          {% endif %}
+        </svg>
+
+        {% if not tree.branches %}
+        <div class="center mt-2">
+          <p class="muted small">还没有枝干。建一个主题、写一条笔记，它就会开始生长。</p>
+          <a class="btn btn--primary" href="{% url 'learning_logs:new_topic' %}">种下第一颗种子</a>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>枝干与树冠</h3>
+        <span class="tiny muted">按笔记数量排序，越靠上越茂盛</span>
+      </div>
+      {% if tree.branches %}
+      <div class="list">
+        {% for branch in tree.branches %}
+        <a class="list__item list__item--link" href="{% url 'learning_logs:topic' branch.topic.id %}">
+          <span class="tone-dot tone-{{ branch.tone }}"></span>
+          <div class="list__main">
+            <span class="list__title">{{ branch.topic.text }}</span>
+            <span class="list__meta">
+              <span>{{ branch.entry_count }} 条记录</span>
+              <span>完成 {{ branch.progress }}%</span>
+            </span>
+          </div>
+          <div class="progress" style="width: 80px">
+            <div class="progress__bar" style="width: {{ branch.progress }}%"></div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card__body muted small">还没有可以展示的枝干。</div>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside class="stack">
+    <section class="card">
+      <div class="card__body stack-sm">
+        <div class="between">
+          <span class="small strong">成长阶段：{{ stage.name }}</span>
+          <span class="small muted">{{ stage.progress }}%</span>
+        </div>
+        <div class="progress"><div class="progress__bar" style="width: {{ stage.progress }}%"></div></div>
+        <p class="small muted">{{ stage.description }}</p>
+        {% if stage.next_name %}
+        <p class="tiny muted">再写 {{ stage.remaining }} 条笔记，就能长成「{{ stage.next_name }}」。</p>
+        {% else %}
+        <p class="tiny muted">已经到最高阶段，继续深化主题吧。</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head"><h3>生长数据</h3></div>
+      <div class="list">
+        <div class="list__item">
+          <div class="list__main"><span class="list__title">连续记录</span></div>
+          <span class="badge badge--teal">{{ overview.streak }} 天</span>
+        </div>
+        <div class="list__item">
+          <div class="list__main"><span class="list__title">累计投入</span></div>
+          <span class="badge badge--outline">{{ overview.total_minutes|dur }}</span>
+        </div>
+        <div class="list__item">
+          <div class="list__main"><span class="list__title">已掌握</span></div>
+          <span class="badge badge--outline">{{ overview.completed_entries }} 条</span>
+        </div>
+        <div class="list__item">
+          <div class="list__main"><span class="list__title">生长天数</span></div>
+          <span class="badge badge--outline">{{ days }} 天</span>
+        </div>
+      </div>
+      <div class="card__foot">{{ growth_note }}</div>
+    </section>
+
+    <section class="card">
+      <div class="card__head"><h3>今日回顾</h3></div>
+      {% if review_entries %}
+      <div class="list">
+        {% for entry in review_entries %}
+        <a class="list__item list__item--link" href="{% url 'learning_logs:entry_comments' entry.id %}">
+          <div class="list__main">
+            <span class="list__title">{{ entry.text|md_plain|truncatechars:36 }}</span>
+            <span class="list__meta">{{ entry.topic.text }} · {{ entry.date_added|date:"Y-m-d" }}</span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card__body muted small">
+        过去的今天还没有记录。写满一年后，这里会自动浮现你当时在想什么。
+      </div>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+{% endblock %}

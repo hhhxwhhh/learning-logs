@@ -27,6 +27,7 @@ from .models import (
     StudySession,
     Topic,
 )
+from .services import garden as garden_service
 from .services import search as search_service
 from .services import stats
 
@@ -419,6 +420,12 @@ def delete_learning_path(request, path_id):
         return redirect('learning_logs:learning_paths')
     
     return redirect('learning_logs:learning_path_detail', path_id=path.id)
+
+
+@login_required
+def garden(request):
+    """学习花园：把主题与笔记可视化成一棵树。"""
+    return render(request, "learning_logs/garden.html", garden_service.garden_context(request.user))
 
 
 @login_required
