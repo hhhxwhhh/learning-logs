@@ -1,0 +1,131 @@
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
+
+{% block title %}{{ owner.username }} 的公开笔记 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Public profile</div>
+    <h1>{{ owner.username }} 的公开笔记</h1>
+    <p>这里只出现 TA 主动开启分享的主题，不展示任何私人内容与联系方式。</p>
+  </div>
+  <div class="cluster">
+    <span class="badge badge--teal">只读</span>
+    {% if user.is_authenticated and user.username == owner.username %}
+    <a class="btn btn--ghost" href="{% url 'learning_logs:topics' %}">管理我的主题</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">公开主题</span>
+    <span class="metric__value">{{ topic_count }}</span>
+    <span class="metric__hint">由作者逐一键开启</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">公开笔记</span>
+    <span class="metric__value">{{ entry_count }}</span>
+    <span class="metric__hint">条学习记录</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">涉及标签</span>
+    <span class="metric__value">{{ tag_names|length }}</span>
+    <span class="metric__hint">跨主题的知识关键词</span>
+  </div>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>公开的主题</h3>
+        <span class="tiny muted">点击进入只读页面</span>
+      </div>
+      <div class="card__body">
+        <div class="grid">
+          {% for topic in topics %}
+          <a class="tile" href="{% url 'learning_logs:shared_topic' topic.share_token %}">
+            <span class="tile__title">{{ topic.text }}</span>
+            <span class="tiny muted">{{ topic.total_items }} 条记录 · 完成 {{ topic.progress_percentage }}%</span>
+            <span class="progress mt-1">
+              <span class="progress__bar" style="width: {{ topic.progress_percentage }}%"></span>
+            </span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    {% if entries %}
+    <section class="card">
+      <div class="card__head">
+        <h3>最近的公开笔记</h3>
+        <span class="tiny muted">最多展示 8 条</span>
+      </div>
+      <div class="card__body">
+        <div class="list">
+          {% for entry in entries %}
+          <a
+            class="list__item list__item--link"
+            href="{% url 'learning_logs:shared_topic' entry.topic.share_token %}"
+          >
+            <div class="list__main">
+              <span class="list__title">{{ entry.text|md_plain|truncatechars:56 }}</span>
+              <span class="list__meta">
+                <span>{{ entry.topic.text }}</span>
+                <span>{{ entry.date_added|date:"Y-m-d" }}</span>
+              </span>
+            </div>
+            <svg width="16" height="16" class="muted"><use href="#i-arrow-right" /></svg>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="stack">
+    {% if tag_names %}
+    <section class="card">
+      <div class="card__head"><h3>标签</h3></div>
+      <div class="card__body">
+        <div class="chip-row">
+          {% for name in tag_names %}
+          <span class="chip">{{ name }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <div class="card__head"><h3>关于公开主页</h3></div>
+      <div class="card__body">
+        <div class="list">
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">默认完全私有</span>
+              <span class="list__meta">只有手动开启分享的主题会出现在这里</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">随时可以关闭</span>
+              <span class="list__meta">关闭分享后链接即刻失效</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">不暴露私人数据</span>
+              <span class="list__meta">不显示邮箱、未分享主题与统计数据</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

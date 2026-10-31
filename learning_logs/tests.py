@@ -1341,3 +1341,40 @@ class TopicFlagTests(BaseTestCase):
         response = self.client.get(reverse("learning_logs:topics"))
         titles = [item.text for item in response.context["topics"]]
         self.assertEqual(titles[0], "另一个主题")
+
+
+class PublicProfileTests(BaseTestCase):
+    """公开主页：只聚合主动分享的主题。"""
+
+    def test_404_when_nothing_shared(self):
+        anonymous = Client()
+        response = anonymous.get(reverse("learning_logs:public_profile", args=["alice"]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_lists_shared_topics_only(self):
+        shared = Topic.objects.create(text="公开的主题", owner=self.alice)
+        shared.share_token = "token-abc"
+        shared.save(update_fields=["share_token"])
+        Topic.objects.create(text="私有的主题", owner=self.alice)
+
+        anonymous = Client()
+        response = anonymous.get(reverse("learning_logs:public_profile", args=["alice"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "公开的主题")
+        self.assertNotContains(response, "私有的主题")
+
+    def test_profile_hides_private_entries(self):
+        shared = Topic.objects.create(text="公开的主题", owner=self.alice)
+        shared.share_token = "token-xyz"
+        shared.save(update_fields=["share_token"])
+        Entry.objects.create(topic=shared, text="公开的笔记内容")
+
+        anonymous = Client()
+        response = anonymous.get(reverse("learning_logs:public_profile", args=["alice"]))
+        self.assertContains(response, "公开的笔记内容")
+        self.assertNotContains(response, "QuerySet 是惰性的")
+
+    def test_unknown_user_is_404(self):
+        anonymous = Client()
+        response = anonymous.get(reverse("learning_logs:public_profile", args=["nobody"]))
+        self.assertEqual(response.status_code, 404)

@@ -256,6 +256,12 @@
             <button class="btn btn--sm btn--danger" type="submit">关闭分享</button>
           </form>
         </div>
+        <a
+          class="btn btn--sm btn--ghost"
+          href="{% url 'learning_logs:public_profile' request.user.username %}"
+        >
+          <svg width="14" height="14"><use href="#i-user" /></svg>查看我的公开主页
+        </a>
         <p class="hint">拿到链接的人可以只读查看，看不到其他主题与个人信息。</p>
         {% else %}
         <p class="small muted">生成一个只读链接，方便把笔记发给同学或老师。</p>

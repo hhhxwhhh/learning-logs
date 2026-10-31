@@ -5,6 +5,7 @@ from datetime import datetime, time, timedelta
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q
@@ -1322,3 +1323,37 @@ def toggle_topic_flag(request, topic_id, flag):
     else:
         raise Http404("未知的状态")
     return redirect(request.POST.get("next") or "learning_logs:topics")
+
+
+def public_profile(request, username):
+    """公开主页：只展示该用户主动开启分享的主题，不含任何私人信息。"""
+    owner = get_object_or_404(get_user_model(), username=username)
+    shared_topics = (
+        Topic.objects.filter(owner=owner)
+        .exclude(share_token="")
+        .order_by("-date_added")
+    )
+    if not shared_topics.exists():
+        raise Http404("这位用户还没有公开任何主题")
+
+    entries = (
+        Entry.objects.filter(topic__in=shared_topics)
+        .select_related("topic")
+        .order_by("-date_added")[:8]
+    )
+    tag_names = sorted(
+        {tag.name for topic in shared_topics for tag in tags_service.tags_of(topic)}
+    )
+
+    return render(
+        request,
+        "learning_logs/public_profile.html",
+        {
+            "owner": owner,
+            "topics": shared_topics,
+            "entries": entries,
+            "tag_names": tag_names,
+            "topic_count": shared_topics.count(),
+            "entry_count": Entry.objects.filter(topic__in=shared_topics).count(),
+        },
+    )

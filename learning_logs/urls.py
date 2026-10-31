@@ -59,6 +59,7 @@ urlpatterns = [
     path("resources/<int:resource_id>/toggle-completion/", views.toggle_resource_completion, name="toggle_resource_completion"),
     # 只读分享
     path("topic/<int:topic_id>/share/", views.toggle_share, name="toggle_share"),
+    path("u/<str:username>/", views.public_profile, name="public_profile"),
     path("s/<str:token>/", views.shared_topic, name="shared_topic"),
     # 学习成就
     path("achievements/", views.achievements, name="achievements"),
