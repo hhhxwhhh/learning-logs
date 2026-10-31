@@ -205,7 +205,10 @@
     }
 
     function iconFor(group) {
-      return group === "主题" ? "#i-layers" : group === "笔记" ? "#i-doc" : "#i-spark";
+      if (group === "主题") return "#i-layers";
+      if (group === "笔记") return "#i-doc";
+      if (group === "标签") return "#i-tag";
+      return "#i-spark";
     }
 
     function render(data) {
@@ -220,6 +223,7 @@
       }
       if (data.topics && data.topics.length) groups.push({ name: "主题", rows: data.topics });
       if (data.entries && data.entries.length) groups.push({ name: "笔记", rows: data.entries });
+      if (data.tags && data.tags.length) groups.push({ name: "标签", rows: data.tags });
 
       if (!groups.length) {
         results.innerHTML =

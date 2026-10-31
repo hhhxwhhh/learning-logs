@@ -1042,3 +1042,49 @@ class PwaUpdateTests(BaseTestCase):
         payload = response.json()
         self.assertTrue(payload["name"])
         self.assertTrue(payload["icons"])
+
+
+class TagSearchTests(BaseTestCase):
+    def test_search_returns_tag_group(self):
+        tags.sync_tags(self.alice, self.topic, "搜索标签")
+        data = search.search_all(self.alice, "搜索标签")
+        self.assertTrue(data["tags"])
+        self.assertEqual(data["tags"][0]["title"], "#搜索标签")
+        self.assertIn("/tags/", data["tags"][0]["url"])
+        self.assertGreater(data["total"], 0)
+
+    def test_api_search_includes_tags(self):
+        tags.sync_tags(self.alice, self.topic, "接口标签")
+        response = self.client.get(
+            reverse("learning_logs:api_search"), {"q": "接口标签"}
+        )
+        payload = response.json()
+        self.assertTrue(payload["tags"])
+        self.assertEqual(payload["tags"][0]["title"], "#接口标签")
+
+    def test_search_without_terms_returns_empty(self):
+        data = search.search_all(self.alice, "  ")
+        self.assertEqual(data["total"], 0)
+        self.assertEqual(data["tags"], [])
+
+    def test_tag_search_is_isolated(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        tags.sync_tags(self.bob, bob_topic, "Bob 的标签")
+        data = search.search_all(self.alice, "Bob 的标签")
+        self.assertEqual(data["tags"], [])
+
+
+class TopicsPageTests(BaseTestCase):
+    def test_topics_page_has_filter_and_sort(self):
+        tags.sync_tags(self.alice, self.topic, "列表标签")
+        response = self.client.get(reverse("learning_logs:topics"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-topic-filter")
+        self.assertContains(response, "data-topic-sort")
+        self.assertContains(response, "列表标签")
+
+    def test_topics_shows_only_own(self):
+        Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        response = self.client.get(reverse("learning_logs:topics"))
+        self.assertContains(response, "Django ORM")
+        self.assertNotContains(response, "Bob 的主题")

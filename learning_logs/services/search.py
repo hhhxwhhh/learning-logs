@@ -11,9 +11,9 @@ from __future__ import annotations
 import html
 import re
 
-from django.db.models import Q
+from django.db.models import Count, Q
 
-from learning_logs.models import Entry, Topic
+from learning_logs.models import Entry, Tag, Topic
 
 _SPLIT = re.compile(r"[\s,，。;；、/|]+")
 
@@ -72,11 +72,43 @@ def make_snippet(text: str, terms: list[str], width: int = 90) -> str:
     return f"{prefix}{escaped}{suffix}"
 
 
+def tag_rows(user, terms: list[str], limit: int = 4) -> list[dict]:
+    """按标签名匹配，命中即给出「该标签下有多少内容」的入口。"""
+    if not terms:
+        return []
+
+    query = Q()
+    for term in terms:
+        query |= Q(name__icontains=term)
+
+    rows = []
+    for tag in Tag.objects.filter(user=user).filter(query).annotate(count=Count("items"))[:12]:
+        rows.append(
+            {
+                "id": tag.id,
+                "title": f"#{tag.name}",
+                "meta": f"{tag.count} 处使用",
+                "snippet": make_snippet(tag.name, terms),
+                "score": score(tag.name, terms, weight=4),
+                "url": f"/tags/{tag.id}/",
+            }
+        )
+    rows.sort(key=lambda row: (-row["score"], row["title"]))
+    return rows[:limit]
+
+
 def search_all(user, query: str, limit: int = 6) -> dict:
-    """返回主题与笔记的搜索结果，按相关度排序。"""
+    """返回主题、笔记与标签的搜索结果，按相关度排序。"""
     terms = tokenize(query)
     if not terms:
-        return {"query": query, "terms": [], "topics": [], "entries": [], "total": 0}
+        return {
+            "query": query,
+            "terms": [],
+            "topics": [],
+            "entries": [],
+            "tags": [],
+            "total": 0,
+        }
 
     topic_q = Q()
     entry_q = Q()
@@ -118,10 +150,13 @@ def search_all(user, query: str, limit: int = 6) -> dict:
         )
     entry_rows.sort(key=lambda row: (row["score"], row["meta"]), reverse=True)
 
+    tag_hits = tag_rows(user, terms)
+
     return {
         "query": query,
         "terms": terms,
         "topics": topic_rows[:limit],
         "entries": entry_rows[:limit],
-        "total": len(topic_rows) + len(entry_rows),
+        "tags": tag_hits,
+        "total": len(topic_rows) + len(entry_rows) + len(tag_hits),
     }

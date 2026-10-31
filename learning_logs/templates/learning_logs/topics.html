@@ -10,15 +10,50 @@
     <h1>我的学习主题</h1>
     <p>每个主题是一块知识领域，条目是这块领域里的具体收获。</p>
   </div>
-  <a class="btn btn--primary" href="{% url 'learning_logs:new_topic' %}">
-    <svg width="16" height="16"><use href="#i-plus" /></svg>新建主题
-  </a>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:graph' %}">
+      <svg width="16" height="16"><use href="#i-graph" /></svg>知识图谱
+    </a>
+    <a class="btn btn--primary" href="{% url 'learning_logs:new_topic' %}">
+      <svg width="16" height="16"><use href="#i-plus" /></svg>新建主题
+    </a>
+  </div>
 </div>
 
 {% if topics %}
-<div class="grid">
+<div class="card mb-3">
+  <div class="card__body stack-sm">
+    <div class="cluster">
+      <label class="field" style="flex: 1; min-width: 200px">
+        <span class="sr-only">搜索主题</span>
+        <input
+          class="input"
+          type="search"
+          placeholder="搜索主题名或标签…"
+          data-topic-filter
+          autocomplete="off"
+        />
+      </label>
+      <div class="cluster" role="group" aria-label="排序方式">
+        <button type="button" class="btn btn--sm btn--primary" data-topic-sort="recent">最近更新</button>
+        <button type="button" class="btn btn--sm btn--ghost" data-topic-sort="progress">完成度</button>
+        <button type="button" class="btn btn--sm btn--ghost" data-topic-sort="entries">记录数</button>
+      </div>
+    </div>
+    <span class="tiny muted" data-topic-count></span>
+  </div>
+</div>
+
+<div class="grid" data-topic-grid>
   {% for topic in topics %}
-  <article class="card card--hover">
+  <article
+    class="card card--hover"
+    data-topic-item
+    data-text="{{ topic.text }} {% for tag in topic.tag_list %}{{ tag.name }} {% endfor %}"
+    data-progress="{{ topic.progress_percentage }}"
+    data-entries="{{ topic.total_items }}"
+    data-created="{{ topic.date_added|date:'U' }}"
+  >
     <div class="card__body stack">
       <div class="between">
         <a class="strong" href="{% url 'learning_logs:topic' topic.id %}">{{ topic.text }}</a>
@@ -30,6 +65,16 @@
       <div class="progress">
         <div class="progress__bar" style="width: {{ topic.progress_percentage }}%"></div>
       </div>
+
+      {% if topic.tag_list %}
+      <div class="chip-row">
+        {% for tag in topic.tag_list %}
+        <a class="chip" href="{% url 'learning_logs:tag_detail' tag.id %}">
+          <svg width="11" height="11"><use href="#i-tag" /></svg>{{ tag.name }}
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
 
       <div class="cluster small muted">
         <span>{{ topic.total_items }} 条记录</span>
@@ -73,4 +118,65 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var grid = document.querySelector("[data-topic-grid]");
+    if (!grid) return;
+
+    var items = Array.prototype.slice.call(grid.querySelectorAll("[data-topic-item]"));
+    var search = document.querySelector("[data-topic-filter]");
+    var counter = document.querySelector("[data-topic-count]");
+    var mode = "recent";
+
+    function sortItems() {
+      items.sort(function (a, b) {
+        if (mode === "progress") {
+          return Number(b.dataset.progress) - Number(a.dataset.progress);
+        }
+        if (mode === "entries") {
+          return Number(b.dataset.entries) - Number(a.dataset.entries);
+        }
+        return Number(b.dataset.created) - Number(a.dataset.created);
+      });
+      items.forEach(function (item) {
+        grid.appendChild(item);
+      });
+    }
+
+    function apply() {
+      var keyword = search ? search.value.trim().toLowerCase() : "";
+      var visible = 0;
+      items.forEach(function (item) {
+        var matched =
+          !keyword || (item.dataset.text || "").toLowerCase().indexOf(keyword) >= 0;
+        item.hidden = !matched;
+        if (matched) visible += 1;
+      });
+      if (counter) {
+        counter.textContent = visible
+          ? "显示 " + visible + " / " + items.length + " 个主题"
+          : "没有匹配的主题";
+      }
+    }
+
+    if (search) search.addEventListener("input", apply);
+
+    document.querySelectorAll("[data-topic-sort]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        mode = button.getAttribute("data-topic-sort");
+        document.querySelectorAll("[data-topic-sort]").forEach(function (other) {
+          other.classList.toggle("btn--primary", other === button);
+          other.classList.toggle("btn--ghost", other !== button);
+        });
+        sortItems();
+      });
+    });
+
+    sortItems();
+    apply();
+  })();
+</script>
 {% endblock %}
