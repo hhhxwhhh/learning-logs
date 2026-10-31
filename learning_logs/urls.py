@@ -38,6 +38,13 @@ urlpatterns = [
     path("steps/<int:step_id>/", views.step_detail, name="step_detail"),
     path("steps/<int:step_id>/toggle-completion/", views.toggle_step_completion, name="toggle_step_completion"),
     path("resources/<int:resource_id>/toggle-completion/", views.toggle_resource_completion, name="toggle_resource_completion"),
+    # 数据导出与导入
+    path("data/", views.data_tools, name="data_tools"),
+    path("data/export/notes/", views.export_notes, name="export_notes"),
+    path("data/export/topic/<int:topic_id>/", views.export_topic, name="export_topic"),
+    path("data/export/cards/", views.export_cards, name="export_cards"),
+    path("data/export/backup/", views.export_backup, name="export_backup"),
+    path("data/import/", views.import_notes, name="import_notes"),
     # 学习花园
     path("garden/", views.garden, name="garden"),
     # 闪卡复习

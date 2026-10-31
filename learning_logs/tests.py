@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import ChatSession, Entry, Flashcard, LearningPath, Topic
-from .services import garden, search, stats
+from .services import export, garden, search, stats
 
 
 class FakeProvider:
@@ -327,3 +327,73 @@ class GardenTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "学习花园")
         self.assertContains(response, "知识树")
+
+
+class ExportImportTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        Flashcard.objects.create(user=self.alice, topic=self.topic, front="问题", back="答案")
+
+    def test_topic_markdown_contains_entry(self):
+        markdown = export.topic_markdown(self.topic)
+        self.assertIn("# Django ORM", markdown)
+        self.assertIn("QuerySet 是惰性的", markdown)
+
+    def test_zip_contains_one_file_per_topic(self):
+        import io as _io
+        import zipfile
+
+        payload = export.all_topics_zip(self.alice)
+        archive = zipfile.ZipFile(_io.BytesIO(payload))
+        names = archive.namelist()
+        self.assertIn("README.md", names)
+        self.assertTrue(any(name.endswith(".md") for name in names))
+
+    def test_flashcards_csv_has_bom_and_header(self):
+        content = export.flashcards_csv(self.alice)
+        self.assertTrue(content.startswith("\ufeff"))
+        self.assertIn("front,back,tags", content)
+        self.assertIn("问题", content)
+
+    def test_backup_json_structure(self):
+        payload = json.loads(export.backup_json(self.alice))
+        self.assertEqual(payload["format"], "zhiji-learning-log")
+        self.assertEqual(len(payload["topics"]), 1)
+        self.assertEqual(payload["flashcards"][0]["front"], "问题")
+
+    def test_export_topic_is_owner_only(self):
+        self.client.force_login(self.bob)
+        response = self.client.get(reverse("learning_logs:export_topic", args=[self.topic.id]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_import_markdown_creates_entries(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        upload = SimpleUploadedFile(
+            "note.md",
+            "## 第一条\n内容一\n## 第二条\n内容二".encode(),
+            content_type="text/markdown",
+        )
+        response = self.client.post(
+            reverse("learning_logs:import_notes"),
+            {"file": upload, "topic": self.topic.id},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.topic.entry_set.count(), 3)
+
+    def test_import_creates_new_topic(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        upload = SimpleUploadedFile("新主题.md", "## 只有一条\n内容".encode())
+        self.client.post(
+            reverse("learning_logs:import_notes"),
+            {"file": upload, "topic": "new", "title": "导入测试"},
+        )
+        topic = Topic.objects.filter(owner=self.alice, text="导入测试").first()
+        self.assertIsNotNone(topic)
+        self.assertEqual(topic.entry_set.count(), 1)
+
+    def test_data_page(self):
+        response = self.client.get(reverse("learning_logs:data_tools"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "数据与备份")

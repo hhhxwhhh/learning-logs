@@ -1,0 +1,117 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}数据与备份 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Data</div>
+    <h1>数据与备份</h1>
+    <p>数据是你的，随时可以带走：Markdown、CSV、JSON 三种格式任选。</p>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">主题</span>
+    <span class="metric__value">{{ topics|length }}<small>个</small></span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">笔记</span>
+    <span class="metric__value">{{ entry_count }}<small>条</small></span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">闪卡</span>
+    <span class="metric__value">{{ card_count }}<small>张</small></span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">学习路径</span>
+    <span class="metric__value">{{ path_count }}<small>条</small></span>
+  </div>
+</div>
+
+<div class="grid mb-3">
+  <article class="card card--hover">
+    <div class="card__body stack">
+      <div class="feature__icon"><svg><use href="#i-doc" /></svg></div>
+      <h3>全部笔记 · Markdown</h3>
+      <p class="small muted">每个主题一个 .md 文件，带时间、状态与评论，可直接放进 Obsidian / Logseq。</p>
+      <a class="btn btn--primary" href="{% url 'learning_logs:export_notes' %}">下载 ZIP</a>
+    </div>
+  </article>
+
+  <article class="card card--hover">
+    <div class="card__body stack">
+      <div class="feature__icon"><svg><use href="#i-cards" /></svg></div>
+      <h3>闪卡 · Anki CSV</h3>
+      <p class="small muted">front / back / tags 三列，UTF-8 BOM 编码，Anki 与 Excel 都能直接打开。</p>
+      <a class="btn" href="{% url 'learning_logs:export_cards' %}">下载 CSV</a>
+    </div>
+  </article>
+
+  <article class="card card--hover">
+    <div class="card__body stack">
+      <div class="feature__icon"><svg><use href="#i-layers" /></svg></div>
+      <h3>完整备份 · JSON</h3>
+      <p class="small muted">主题、笔记、评论、闪卡、路径与目标的完整快照，方便迁移或二次开发。</p>
+      <a class="btn" href="{% url 'learning_logs:export_backup' %}">下载 JSON</a>
+    </div>
+  </article>
+</div>
+
+<div class="split">
+  <section class="card">
+    <div class="card__head">
+      <h3>从 Markdown 导入</h3>
+      <span class="tiny muted">支持 .md / .txt，最大 1MB</span>
+    </div>
+    <form method="post" action="{% url 'learning_logs:import_notes' %}" enctype="multipart/form-data" class="card__body stack">
+      {% csrf_token %}
+      <div class="field">
+        <label class="label" for="import-file">Markdown 文件</label>
+        <input class="input" id="import-file" type="file" name="file" accept=".md,.markdown,.txt" required />
+        <span class="hint">按「## 标题」或「# 标题」切分成多条记录；没有标题时整篇作为一条。</span>
+      </div>
+
+      <div class="field">
+        <label class="label" for="import-topic">导入到</label>
+        <select class="select" id="import-topic" name="topic">
+          <option value="new">＋ 新建主题</option>
+          {% for topic in topics %}
+          <option value="{{ topic.id }}">{{ topic.text }}（{{ topic.entry_count }} 条）</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="label" for="import-title">新主题名称（选择「新建主题」时生效）</label>
+        <input class="input" id="import-title" name="title" maxlength="200" placeholder="留空则使用文件名" />
+      </div>
+
+      <button class="btn btn--primary" type="submit">开始导入</button>
+    </form>
+  </section>
+
+  <aside class="stack">
+    <div class="panel small">
+      <strong class="strong">Markdown 导出长什么样</strong>
+      <pre style="white-space: pre-wrap; font-size: 0.76rem; line-height: 1.7; margin: 0.5rem 0 0"># Django ORM
+
+> 导出时间：2026-10-31 20:00 · 9 条记录
+
+## 2026-10-31 19:30 · 已掌握
+
+QuerySet 是惰性的……
+
+### 评论
+- **alice**（2026-10-31）：补充……</pre>
+    </div>
+    <div class="panel small muted">
+      <strong class="strong">关于隐私</strong>
+      <p class="mt-1" style="margin-bottom: 0">
+        导出内容包含你的全部笔记原文，请妥善保管；备份文件不会包含头像等媒体文件。
+      </p>
+    </div>
+  </aside>
+</div>
+{% endblock %}
