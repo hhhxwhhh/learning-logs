@@ -10,6 +10,12 @@
     <p>按 SM-2 算法安排复习：记得越牢，下次间隔越长；忘了就重来。</p>
   </div>
   <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:card_stats' %}">
+      <svg width="16" height="16"><use href="#i-chart" /></svg>复习统计
+    </a>
+    <a class="btn btn--ghost" href="{% url 'learning_logs:import_center' %}">
+      <svg width="16" height="16"><use href="#i-plus" /></svg>批量导入
+    </a>
     {% if due_count %}
     <a class="btn btn--primary" href="{% url 'learning_logs:review' %}">
       <svg width="16" height="16"><use href="#i-cards" /></svg>开始复习（{{ due_count }}）

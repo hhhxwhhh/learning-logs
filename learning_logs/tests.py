@@ -920,3 +920,75 @@ class NotificationTests(BaseTestCase):
             )
         notifications.prune(self.alice)
         self.assertLessEqual(Notification.objects.filter(user=self.alice).count(), 40)
+
+
+class ImportCenterTests(BaseTestCase):
+    """批量建卡与 Anki CSV 导入。"""
+
+    def test_parse_card_lines(self):
+        pairs = export.parse_card_lines(
+            "# 注释\n问题 A | 答案 A\n问题 B\t答案 B\n没有分隔符\n"
+        )
+        self.assertEqual(pairs, [("问题 A", "答案 A"), ("问题 B", "答案 B")])
+
+    def test_import_cards_skips_duplicates(self):
+        result = export.import_cards(self.alice, self.topic, "Q1 | A1\nQ1 | A1\nQ2 | A2")
+        self.assertEqual(result["created"], 2)
+        self.assertEqual(result["skipped"], 1)
+
+    def test_import_cards_csv_with_header(self):
+        content = "Front,Back\nCSV 问题,CSV 答案\n"
+        result = export.import_cards_csv(self.alice, self.topic, content)
+        self.assertEqual(result["created"], 1)
+        card = Flashcard.objects.get(front="CSV 问题")
+        self.assertEqual(card.back, "CSV 答案")
+
+    def test_import_rejects_foreign_topic(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        result = export.import_cards(self.alice, bob_topic, "Q | A")
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(Flashcard.objects.filter(user=self.bob).count(), 0)
+
+    def test_import_page_and_action(self):
+        response = self.client.get(reverse("learning_logs:import_center"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "导入中心")
+
+        response = self.client.post(
+            reverse("learning_logs:import_cards"),
+            {"topic": self.topic.id, "cards": "页面问题 | 页面答案"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Flashcard.objects.filter(front="页面问题").exists())
+
+    def test_import_requires_own_topic(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        response = self.client.post(
+            reverse("learning_logs:import_cards"),
+            {"topic": bob_topic.id, "cards": "Q | A"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Flashcard.objects.count(), 0)
+
+
+class CardStatsTests(BaseTestCase):
+    def test_stats_page(self):
+        Flashcard.objects.create(user=self.alice, topic=self.topic, front="Q1", back="A1")
+        mastered = Flashcard.objects.create(
+            user=self.alice, topic=self.topic, front="Q2", back="A2"
+        )
+        mastered.repetitions = 4
+        mastered.interval_days = 20
+        mastered.save()
+        mastered.review(5)
+
+        response = self.client.get(reverse("learning_logs:card_stats"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total"], 2)
+        self.assertEqual(response.context["buckets"]["已掌握"], 1)
+        self.assertEqual(response.context["buckets"]["未开始"], 1)
+        self.assertContains(response, "复习统计")
+
+    def test_daily_series_has_two_weeks(self):
+        response = self.client.get(reverse("learning_logs:card_stats"))
+        self.assertEqual(len(response.context["daily"]), 14)

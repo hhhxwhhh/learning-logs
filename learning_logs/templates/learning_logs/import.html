@@ -1,0 +1,137 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}导入中心 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Import</div>
+    <h1>导入中心</h1>
+    <p>把别处积累的笔记与卡片搬进来：Markdown 文件、批量文本、Anki 导出的 CSV。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:data_tools' %}">导出与备份</a>
+    <a class="btn btn--ghost" href="{% url 'learning_logs:flashcards' %}">我的闪卡</a>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">现有笔记</span>
+    <span class="metric__value">{{ entry_count }}</span>
+    <span class="metric__hint">条学习记录</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">现有闪卡</span>
+    <span class="metric__value">{{ card_count }}</span>
+    <span class="metric__hint">导入会跳过重复正面</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">可用主题</span>
+    <span class="metric__value">{{ topics|length }}</span>
+    <span class="metric__hint">导入前请先选好归属</span>
+  </div>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>批量建卡</h3>
+        <span class="tiny muted">每行一张，用 | 或 Tab 分隔</span>
+      </div>
+      <div class="card__body">
+        <form method="post" action="{% url 'learning_logs:import_cards' %}" class="stack" enctype="multipart/form-data">
+          {% csrf_token %}
+          <label class="field">
+            <span class="field__label">归属主题</span>
+            <select class="select" name="topic" required>
+              {% for topic in topics %}
+              <option value="{{ topic.id }}">{{ topic.text }}（{{ topic.card_count }} 张）</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field__label">卡片内容</span>
+            <textarea
+              class="input textarea"
+              name="cards"
+              rows="9"
+              placeholder="QuerySet 什么时候执行？| 被求值的时候：迭代、切片带 step、len()、list()、bool()
+select_related 的作用 | 用 SQL JOIN 一次性取出关联对象，避免 N+1"
+            ></textarea>
+            <span class="tiny muted">支持 # 开头的注释行，空行会自动忽略。</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">或上传 Anki CSV（可选）</span>
+            <input class="input" type="file" name="file" accept=".csv,.txt,.tsv" />
+            <span class="tiny muted">取前两列作为正面与背面，自动跳过表头。</span>
+          </label>
+
+          <div class="form-actions">
+            <button class="btn btn--primary" type="submit">
+              <svg width="16" height="16"><use href="#i-plus" /></svg>导入卡片
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card__head"><h3>导入 Markdown 笔记</h3></div>
+      <div class="card__body">
+        <form method="post" action="{% url 'learning_logs:import_notes' %}" class="stack" enctype="multipart/form-data">
+          {% csrf_token %}
+          <label class="field">
+            <span class="field__label">目标主题</span>
+            <select class="select" name="topic">
+              <option value="new">新建一个主题</option>
+              {% for topic in topics %}
+              <option value="{{ topic.id }}">{{ topic.text }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">文件</span>
+            <input class="input" type="file" name="file" accept=".md,.markdown,.txt" required />
+          </label>
+          <button class="btn" type="submit">
+            <svg width="16" height="16"><use href="#i-doc" /></svg>导入笔记
+          </button>
+        </form>
+        <p class="tiny muted mt-2">按二级标题（##）切分成多条记录，保留原有正文。</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head"><h3>导入约定</h3></div>
+      <div class="card__body">
+        <div class="list">
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">重复卡片自动跳过</span>
+              <span class="list__meta">按正面内容去重，不会覆盖已有进度</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">单文件不超过 1MB</span>
+              <span class="list__meta">更大的库建议分批导入</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">只导入到你自己的主题</span>
+              <span class="list__meta">选不到别人的主题，越权请求会被拒绝</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

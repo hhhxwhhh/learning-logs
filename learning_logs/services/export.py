@@ -190,3 +190,75 @@ def import_markdown(user, text: str, *, topic: Topic | None = None, title: str =
     Entry.objects.bulk_create(entries)
     topic.update_progress()
     return {"created": len(entries), "topic": topic}
+
+
+def parse_card_lines(text: str) -> list[tuple[str, str]]:
+    """解析批量建卡文本：每行一张卡，支持 |、Tab、;; 三种分隔。"""
+    pairs: list[tuple[str, str]] = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        front, back = "", ""
+        for separator in ("\t", ";;", "|", "｜", "——"):
+            if separator in line:
+                front, back = line.split(separator, 1)
+                break
+        if not back:
+            continue
+
+        front = front.strip()[:300]
+        back = back.strip()
+        if front and back:
+            pairs.append((front, back))
+    return pairs
+
+
+def import_cards(user, topic: Topic, text: str) -> dict:
+    """批量创建闪卡，返回 {created, skipped}。"""
+    if topic is None or topic.owner_id != user.id:
+        return {"created": 0, "skipped": 0}
+
+    pairs = parse_card_lines(text)
+    if not pairs:
+        return {"created": 0, "skipped": 0}
+
+    existing = set(
+        Flashcard.objects.filter(user=user, topic=topic).values_list("front", flat=True)
+    )
+    cards = []
+    skipped = 0
+    for front, back in pairs:
+        if front in existing:
+            skipped += 1
+            continue
+        existing.add(front)
+        cards.append(Flashcard(user=user, topic=topic, front=front, back=back))
+
+    if cards:
+        Flashcard.objects.bulk_create(cards)
+    return {"created": len(cards), "skipped": skipped}
+
+
+def import_cards_csv(user, topic: Topic, content: str) -> dict:
+    """导入 Anki 导出的 CSV（前两列为正面/背面，可含表头）。"""
+    if topic is None or topic.owner_id != user.id:
+        return {"created": 0, "skipped": 0}
+
+    reader = csv.reader(io.StringIO(content or ""))
+    rows = [row for row in reader if any(cell.strip() for cell in row)]
+    if not rows:
+        return {"created": 0, "skipped": 0}
+
+    first_cell = rows[0][0].strip().lower()
+    if first_cell in {"front", "正面", "问题", "question"}:
+        rows = rows[1:]
+
+    lines = []
+    for row in rows:
+        front = row[0].strip() if row else ""
+        back = row[1].strip() if len(row) > 1 else ""
+        if front and back:
+            lines.append(f"{front}\t{back}")
+    return import_cards(user, topic, "\n".join(lines))

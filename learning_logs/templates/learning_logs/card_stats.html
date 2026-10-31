@@ -1,0 +1,95 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}复习统计 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Review stats</div>
+    <h1>复习统计</h1>
+    <p>看清哪些知识已经真正掌握，哪些还在反复遗忘。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:import_center' %}">导入中心</a>
+    <a class="btn btn--primary" href="{% url 'learning_logs:review' %}">
+      <svg width="16" height="16"><use href="#i-brain" /></svg>去复习
+    </a>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">卡片总数</span>
+    <span class="metric__value">{{ total }}</span>
+    <span class="metric__hint">今日到期 {{ due_count }} 张</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">已掌握</span>
+    <span class="metric__value">{{ buckets.已掌握 }}</span>
+    <span class="metric__hint">连续答对 3 次以上</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">学习中</span>
+    <span class="metric__value">{{ buckets.学习中 }}</span>
+    <span class="metric__hint">正在形成长期记忆</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">未开始</span>
+    <span class="metric__value">{{ buckets.未开始 }}</span>
+    <span class="metric__hint">还没进入间隔重复</span>
+  </div>
+</div>
+
+<div class="split">
+  <section class="card">
+    <div class="card__head">
+      <h3>近 14 天复习量</h3>
+      <span class="tiny muted">累计复习过 {{ reviewed }} 张</span>
+    </div>
+    <div class="card__body">
+      <div class="bars">
+        {% for row in daily %}
+        <div class="bars__item" title="{{ row.date }} 复习 {{ row.count }} 张">
+          <div
+            class="bars__bar"
+            style="height: {% widthratio row.count max_daily 100 %}%"
+            {% if not row.count %}data-empty="true"{% endif %}
+          ></div>
+          <span class="bars__label">{{ row.date }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="tiny muted mt-2">柱高按当天复习张数绘制，最高 {{ max_daily }} 张。</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h3>按主题分布</h3>
+      <span class="tiny muted">卡片最多的 8 个主题</span>
+    </div>
+    <div class="card__body">
+      {% if by_topic %}
+      <div class="list">
+        {% for row in by_topic %}
+        <div class="list__item">
+          <div class="list__main">
+            <span class="list__title">{{ row.topic__text }}</span>
+            <span class="list__meta">{{ row.total }} 张 · 已掌握 {{ row.mastered }} 张</span>
+            <span class="progress mt-1">
+              <span
+                class="progress__bar"
+                style="width: {% widthratio row.mastered row.total 100 %}%"
+              ></span>
+            </span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted small">还没有卡片数据。</p>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

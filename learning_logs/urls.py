@@ -72,6 +72,10 @@ urlpatterns = [
     path("data/export/cards/", views.export_cards, name="export_cards"),
     path("data/export/backup/", views.export_backup, name="export_backup"),
     path("data/import/", views.import_notes, name="import_notes"),
+    # 导入中心与闪卡统计
+    path("import/", views.import_center, name="import_center"),
+    path("import/cards/", views.import_cards_view, name="import_cards"),
+    path("flashcards/stats/", views.card_stats, name="card_stats"),
     # 学习花园
     path("garden/", views.garden, name="garden"),
     # 标签体系

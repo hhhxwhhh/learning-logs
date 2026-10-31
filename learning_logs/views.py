@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -635,6 +635,10 @@ FEATURE_GROUPS = [
              "desc": "管理所有卡片，支持 AI 批量生成"},
             {"name": "今日复习", "url": "/flashcards/review/", "icon": "i-brain", "key": "r",
              "desc": "SM-2 算法挑出今天该复习的卡"},
+            {"name": "复习统计", "url": "/flashcards/stats/", "icon": "i-chart", "key": "",
+             "desc": "掌握度分布与近 14 天复习节奏"},
+            {"name": "导入中心", "url": "/import/", "icon": "i-plus", "key": "",
+             "desc": "Markdown 笔记、批量建卡与 Anki CSV 导入"},
             {"name": "专注计时", "url": "/focus/", "icon": "i-timer", "key": "f",
              "desc": "番茄钟，结束即计入学习时长"},
             {"name": "AI 助教", "url": "/topics/", "icon": "i-spark", "key": "",
@@ -699,6 +703,7 @@ QUICK_ACTIONS = [
     {"label": "功能地图", "url": "/features/", "keywords": ["功能", "地图", "快捷键", "features"]},
     {"label": "开放 API", "url": "/api/docs/", "keywords": ["api", "接口", "令牌", "token"]},
     {"label": "提醒中心", "url": "/notifications/", "keywords": ["提醒", "通知", "notification"]},
+    {"label": "导入中心", "url": "/import/", "keywords": ["导入", "anki", "批量", "import"]},
 ]
 
 
@@ -1130,3 +1135,98 @@ def focus_log(request):
             "message": f"已记录 {minutes} 分钟专注：{topic.text}",
         }
     )
+
+
+@login_required
+def import_center(request):
+    """导入中心：Markdown 笔记、批量文本建卡、Anki CSV 三种入口。"""
+    topics = Topic.objects.filter(owner=request.user).annotate(
+        card_count=Count("flashcards")
+    )
+    return render(
+        request,
+        "learning_logs/import.html",
+        {
+            "topics": topics,
+            "entry_count": Entry.objects.filter(topic__owner=request.user).count(),
+            "card_count": Flashcard.objects.filter(user=request.user).count(),
+        },
+    )
+
+
+@login_required
+@require_POST
+def import_cards_view(request):
+    """批量建卡：支持粘贴文本与上传 Anki CSV。"""
+    topic_id = request.POST.get("topic")
+    topic = Topic.objects.filter(id=topic_id, owner=request.user).first()
+    if topic is None:
+        messages.error(request, "请先选择一个属于自己的主题。")
+        return redirect("learning_logs:import_center")
+
+    text = (request.POST.get("cards") or "").strip()
+    upload = request.FILES.get("file")
+
+    if upload is not None:
+        if upload.size > 1024 * 1024:
+            messages.error(request, "文件超过 1MB，请拆分后再导入。")
+            return redirect("learning_logs:import_center")
+        content = upload.read().decode("utf-8-sig", errors="ignore")
+        result = export_service.import_cards_csv(request.user, topic, content)
+        source = upload.name
+    elif text:
+        result = export_service.import_cards(request.user, topic, text)
+        source = "粘贴的文本"
+    else:
+        messages.error(request, "请粘贴卡片内容或上传 CSV 文件。")
+        return redirect("learning_logs:import_center")
+
+    if not result["created"]:
+        messages.info(request, "没有新增卡片，可能是内容为空或正面重复。")
+    else:
+        messages.success(
+            request,
+            f"已从{source}导入 {result['created']} 张卡片"
+            + (f"，跳过 {result['skipped']} 张重复卡。" if result["skipped"] else "。"),
+        )
+    return redirect("learning_logs:flashcards")
+
+
+@login_required
+def card_stats(request):
+    """闪卡复习统计：掌握度分布、按主题分布与最近复习节奏。"""
+    cards = Flashcard.objects.filter(user=request.user).select_related("topic")
+    today = timezone.localdate()
+
+    buckets = {"未开始": 0, "学习中": 0, "已掌握": 0}
+    for card in cards:
+        if card.repetitions == 0:
+            buckets["未开始"] += 1
+        elif card.repetitions >= 3:
+            buckets["已掌握"] += 1
+        else:
+            buckets["学习中"] += 1
+
+    by_topic = (
+        cards.values("topic__text")
+        .annotate(total=Count("id"), mastered=Count("id", filter=Q(repetitions__gte=3)))
+        .order_by("-total")[:8]
+    )
+
+    daily = []
+    for offset in range(13, -1, -1):
+        day = today - timedelta(days=offset)
+        count = cards.filter(last_reviewed_at__date=day).count()
+        daily.append({"date": day.strftime("%m-%d"), "count": count})
+
+    reviewed = cards.filter(last_reviewed_at__isnull=False).count()
+    context = {
+        "total": cards.count(),
+        "buckets": buckets,
+        "by_topic": by_topic,
+        "daily": daily,
+        "reviewed": reviewed,
+        "due_count": cards.filter(due_date__lte=today).count(),
+        "max_daily": max((row["count"] for row in daily), default=0) or 1,
+    }
+    return render(request, "learning_logs/card_stats.html", context)
