@@ -61,15 +61,16 @@ def _level(minutes: int) -> int:
 
 
 def heatmap_weeks(user, weeks: int = 17) -> list[list[dict]]:
-    """生成 GitHub 风格热力图数据：按周分组，每周 7 天（周一开始）。"""
+    """生成 GitHub 风格热力图数据：固定 weeks 列，每列周一到周日。"""
+    weeks = max(1, weeks)
     today = timezone.localdate()
-    start = today - timedelta(days=weeks * 7 - 1)
-    start -= timedelta(days=start.weekday())
+    end = today + timedelta(days=6 - today.weekday())  # 本周周日
+    start = end - timedelta(days=weeks * 7 - 1)
     totals = daily_minutes(user, days=(today - start).days + 1)
 
     result: list[list[dict]] = []
     cursor = start
-    while cursor <= today:
+    for _ in range(weeks):
         week = []
         for _ in range(7):
             if cursor > today:

@@ -1,46 +1,133 @@
-# Learning Log Project
+# 知迹 · Learning Log
 
-A web application that allows users to log and track their learning journey on various topics. Users can create topics, add entries, interact with AI for learning assistance, and organize their learning path.
+一个把「学习笔记 → 学习路径 → 时间投入 → AI 复盘 → 间隔复习」串成闭环的学习记录系统。
+Django 服务端渲染，零前端框架依赖，可完全离线运行，也可以接任意 OpenAI 兼容大模型。
 
-## Features
+## 功能
 
-- User authentication and authorization
-- Topic and entry management
-- Comments on entries
-- AI learning assistant (powered by Ollama)
-- Learning paths with progress tracking
-- Study session monitoring
-- Learning goals
-- Dashboard with statistics
+| 模块 | 说明 |
+| --- | --- |
+| 学习主题 / 笔记 | 主题下记录条目，支持 Markdown 渲染、完成状态、评论与全文搜索 |
+| AI 助教 | 基于当前主题笔记的多轮对话，SSE 流式输出，支持摘要 / 自测题 / 下一步建议 |
+| AI 生成学习路径 | 让模型把目标拆成 3-6 个步骤，自动创建主题、步骤与资源 |
+| 学习路径 | 手动编排步骤、预计学时与资源，记录完成进度 |
+| 学习计时 | 开始 / 结束会话，自动累计学习时长 |
+| 学习分析 | 热力图、12 周投入、时段分布、主题投入排行、自动洞察 |
+| 闪卡复习 | SM-2 间隔重复算法，AI 一键从笔记生成卡片，支持键盘评分 |
+| 学习目标 | 截止日期、剩余天数、逾期提醒 |
 
-## Technology Stack
+## 技术栈
 
-- Django 5.1.7
-- Python 3.12
-- Bootstrap 5
-- FontAwesome
-- Ollama for AI features
+- **Django 5.2** + Python 3.13，SQLite（可直接切换 PostgreSQL）
+- **markdown-it-py** 渲染笔记与 AI 回答（禁用原始 HTML，避免 XSS）
+- **openai SDK** 统一访问 Ollama / DeepSeek / OpenAI 等兼容服务
+- **SSE** 流式输出，原生 `fetch` + `ReadableStream` 增量渲染
+- **自研 CSS 设计系统**：设计令牌、明暗主题、`:has()` 与 `color-mix()`，无 Bootstrap / Tailwind 依赖
+- **Gunicorn + WhiteNoise** 生产部署，容器内非 root 运行，带 `/healthz` 探活
 
-## Installation
+## 快速开始
 
-1. Clone the repository
-2. Create a virtual environment
-3. Install dependencies: `pip install -r requirements.txt`
-4. Run migrations: `python manage.py migrate`
-5. Start the server: `python manage.py runserver`
+```bash
+# 1. 准备环境（建议 3.12+）
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 
-## AI Features
+# 2. 配置环境变量
+cp .env.example .env             # 按需修改，至少换掉 DJANGO_SECRET_KEY
 
-This project includes AI assistance features powered by Ollama. To use these features:
+# 3. 初始化数据库
+python manage.py migrate
+python manage.py createsuperuser
 
-1. Install Ollama from [ollama.ai](https://ollama.ai)
-2. Pull the required model: `ollama pull qwq:latest`
-3. Ensure Ollama is running before using AI features
+# 4. 启动
+python manage.py runserver
+```
 
-## Screenshots
+访问 <http://127.0.0.1:8000>，注册后即可开始记录。
 
-[Add screenshots here]
+## AI 配置
+
+AI 能力全部由环境变量驱动，默认对接本地 Ollama 的 OpenAI 兼容接口：
+
+```env
+AI_PROVIDER=ollama
+AI_BASE_URL=http://localhost:11434/v1
+AI_API_KEY=ollama
+AI_MODEL=qwen2.5:7b
+```
+
+本地模型准备：
+
+```bash
+ollama pull qwen2.5:7b
+ollama serve
+```
+
+切换到云端兼容服务只需要改三行：
+
+```env
+AI_PROVIDER=openai
+AI_BASE_URL=https://api.deepseek.com/v1
+AI_API_KEY=sk-xxxx
+AI_MODEL=deepseek-chat
+AI_MODELS=deepseek-chat|DeepSeek V3,deepseek-reasoner|DeepSeek R1
+```
+
+没有模型也能用界面：设置 `AI_PROVIDER=mock` 进入离线演示模式，不发起任何网络请求。
+
+> 隐私说明：只有当前主题的笔记（最近 40 条、约 6000 字）会被拼进提示词发给模型服务。
+> 使用本地 Ollama 时数据不出内网。
+
+## 项目结构
+
+```
+ll_project/            项目配置（settings 全部来自环境变量）、健康检查
+learning_logs/         主题、笔记、路径、计时、闪卡、统计服务
+  ai/                  Provider 抽象、提示词、流式编排、AI 视图
+  services/stats.py    热力图 / 连续天数 / 时段分布等统计口径
+  templatetags/        Markdown、时长格式化过滤器
+accounts/              自定义用户、注册登录、个人中心
+analytics/             学习分析（总览 / 时间统计 / 进度报告 / 主题分析）
+templates/partials/    图标精灵、表单字段等共享片段
+static/css/app.css     设计系统（2000 行，无外部依赖）
+static/js/app.js       主题切换、Toast、代码复制等原生交互
+```
+
+## 测试
+
+```bash
+python manage.py test
+```
+
+覆盖模型进度计算、SM-2 间隔算法、越权访问、搜索隔离、AI 流式接口与结构化输出解析（AI 调用全部使用假 Provider，不联网）。
+
+## 部署
+
+```bash
+docker build -t learning-log .
+docker run --rm -p 8000:8000 \
+  -e DJANGO_SECRET_KEY="$(python -c 'import secrets;print(secrets.token_urlsafe(50))')" \
+  -e DJANGO_ALLOWED_HOSTS=your-domain.com \
+  -v "$PWD/data:/app/data" \
+  learning-log
+```
+
+首次启动前执行迁移：
+
+```bash
+docker run --rm -v "$PWD/data:/app/data" learning-log python manage.py migrate
+```
+
+生产环境要点：`DJANGO_DEBUG=0`、设置 `DJANGO_SECRET_KEY` 与 `DJANGO_ALLOWED_HOSTS`、
+反向代理终止 HTTPS（默认开启 `SECURE_SSL_REDIRECT` 与 HSTS）。
+
+## 设计取舍
+
+- **不用前端构建**：模板足够快，少一层工具链，学习项目更容易长期维护。
+- **数据永不上云**：没有第三方分析脚本，字体与图标全部本地化。
+- **AI 只是助手**：所有回答都标注来源笔记，模型不可用时功能自动降级而不是整页崩溃。
 
 ## License
 
-[Your license information]
+MIT

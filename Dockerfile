@@ -19,12 +19,14 @@ COPY . .
 
 # 构建静态资源并用非 root 用户运行
 RUN python manage.py collectstatic --noinput \
+    && mkdir -p /app/data \
     && useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
 ENV DJANGO_DEBUG=0 \
     DJANGO_ALLOWED_HOSTS=* \
+    DJANGO_DB_PATH=/app/data/db.sqlite3 \
     PORT=8000
 
 EXPOSE 8000
