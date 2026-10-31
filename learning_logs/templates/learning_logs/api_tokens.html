@@ -1,0 +1,106 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}API 令牌 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Developer</div>
+    <h1>API 令牌</h1>
+    <p>用自己的令牌把学习数据接到脚本、自动化或第三方笔记工具里。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:api_docs' %}">接口文档</a>
+    <a class="btn btn--ghost" href="{% url 'learning_logs:data_tools' %}">数据备份</a>
+  </div>
+</div>
+
+{% if new_token %}
+<div class="panel panel--accent mb-3">
+  <strong class="strong">新令牌（只显示这一次）</strong>
+  <div class="cluster mt-1">
+    <code class="token-value" data-copy="{{ new_token }}">{{ new_token }}</code>
+    <button type="button" class="btn btn--sm" data-copy-btn data-copy-text="{{ new_token }}">
+      <svg width="14" height="14"><use href="#i-doc" /></svg>复制
+    </button>
+  </div>
+  <p class="tiny muted mt-1">请立即保存到密码管理器。刷新页面后将无法再次查看完整令牌。</p>
+</div>
+{% endif %}
+
+<section class="card">
+  <div class="card__head">
+    <h3>签发新令牌</h3>
+    <span class="tiny muted">按用途分开管理，随时可吊销</span>
+  </div>
+  <div class="card__body">
+    <form method="post" class="row">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create" />
+      <label class="field" style="flex: 1; min-width: 240px">
+        <span class="field__label">用途名称</span>
+        <input class="input" type="text" name="name" placeholder="例如：Obsidian 同步脚本" />
+      </label>
+      <button class="btn btn--primary" type="submit">
+        <svg width="16" height="16"><use href="#i-plus" /></svg>签发令牌
+      </button>
+    </form>
+  </div>
+</section>
+
+<section class="card mt-3">
+  <div class="card__head">
+    <h3>已有令牌</h3>
+    <span class="tiny muted">{{ tokens|length }} 个</span>
+  </div>
+  <div class="card__body">
+    {% if tokens %}
+    <div class="list">
+      {% for token in tokens %}
+      <div class="list__item">
+        <div class="list__main">
+          <span class="list__title">
+            {{ token.name }}
+            {% if token.revoked %}
+            <span class="badge badge--rose">已吊销</span>
+            {% else %}
+            <span class="badge badge--teal">生效中</span>
+            {% endif %}
+          </span>
+          <span class="list__meta">
+            <code>{{ token.masked }}</code>
+            <span>创建于 {{ token.created_at|date:"Y-m-d H:i" }}</span>
+            {% if token.last_used_at %}<span>最近使用 {{ token.last_used_at|date:"m-d H:i" }}</span>{% endif %}
+          </span>
+        </div>
+        {% if not token.revoked %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="revoke" />
+          <input type="hidden" name="token_id" value="{{ token.id }}" />
+          <button class="btn btn--sm btn--danger" type="submit">
+            <svg width="14" height="14"><use href="#i-trash" /></svg>吊销
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted small">还没有令牌。签发一个即可开始调用开放接口。</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mt-3">
+  <div class="card__head"><h3>调用示例</h3></div>
+  <div class="card__body stack-sm">
+    <pre class="code-sample">curl -H "Authorization: Bearer 你的令牌" \
+  {{ request.scheme }}://{{ request.get_host }}/api/v1/topics/</pre>
+    <pre class="code-sample">curl -X POST \
+  -H "Authorization: Bearer 你的令牌" \
+  -d "topic_name=今日速记" -d "text=刚学到的一个知识点" \
+  {{ request.scheme }}://{{ request.get_host }}/api/v1/entries/create/</pre>
+  </div>
+</section>
+{% endblock %}

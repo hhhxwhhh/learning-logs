@@ -9,7 +9,16 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import ChatSession, Entry, Flashcard, LearningPath, StudySession, Tag, Topic
+from .models import (
+    ApiToken,
+    ChatSession,
+    Entry,
+    Flashcard,
+    LearningPath,
+    StudySession,
+    Tag,
+    Topic,
+)
 from .services import achievements, export, garden, graph, report, search, stats, tags
 
 
@@ -712,3 +721,111 @@ class MarkdownEditorTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "data-md-editor")
         self.assertContains(response, "editor.js")
+
+
+class ApiTokenTests(BaseTestCase):
+    """开放 API：鉴权、只读接口与快速写入。"""
+
+    def setUp(self):
+        super().setUp()
+        self.token = ApiToken.issue(self.alice, "测试令牌")
+
+    def auth(self, token=None):
+        return {"HTTP_AUTHORIZATION": "Bearer " + (token or self.token.token)}
+
+    def test_requires_token(self):
+        response = self.client.get(reverse("learning_logs:api_topics"))
+        self.assertEqual(response.status_code, 401)
+        self.assertFalse(response.json()["ok"])
+
+    def test_invalid_token_rejected(self):
+        response = self.client.get(
+            reverse("learning_logs:api_topics"), HTTP_AUTHORIZATION="Bearer nope"
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_topics_endpoint_returns_own_data(self):
+        response = self.client.get(reverse("learning_logs:api_topics"), **self.auth())
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["results"][0]["text"], "Django ORM")
+
+    def test_data_is_isolated_between_users(self):
+        Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        payload = self.client.get(
+            reverse("learning_logs:api_topics"), **self.auth()
+        ).json()
+        self.assertEqual([row["text"] for row in payload["results"]], ["Django ORM"])
+
+    def test_entries_endpoint_filters(self):
+        response = self.client.get(
+            reverse("learning_logs:api_entries"), {"q": "QuerySet"}, **self.auth()
+        )
+        payload = response.json()
+        self.assertEqual(payload["count"], 1)
+
+        response = self.client.get(
+            reverse("learning_logs:api_entries"), {"q": "不存在的内容"}, **self.auth()
+        )
+        self.assertEqual(response.json()["count"], 0)
+
+    def test_quick_entry_creates_note(self):
+        response = self.client.post(
+            reverse("learning_logs:api_quick_entry"),
+            {"topic_name": "新主题", "text": "来自 API 的笔记"},
+            **self.auth(),
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Entry.objects.filter(text="来自 API 的笔记").exists())
+
+    def test_quick_entry_rejects_empty_text(self):
+        response = self.client.post(
+            reverse("learning_logs:api_quick_entry"),
+            {"topic": self.topic.id, "text": "  "},
+            **self.auth(),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_revoked_token_stops_working(self):
+        self.token.revoked = True
+        self.token.save()
+        response = self.client.get(reverse("learning_logs:api_topics"), **self.auth())
+        self.assertEqual(response.status_code, 401)
+
+    def test_token_page_issues_and_revokes(self):
+        response = self.client.post(
+            reverse("learning_logs:api_tokens"), {"action": "create", "name": "脚本"}
+        )
+        self.assertEqual(response.status_code, 302)
+        created = ApiToken.objects.get(user=self.alice, name="脚本")
+        self.assertNotEqual(created.token, "")
+
+        response = self.client.post(
+            reverse("learning_logs:api_tokens"),
+            {"action": "revoke", "token_id": created.id},
+        )
+        self.assertEqual(response.status_code, 302)
+        created.refresh_from_db()
+        self.assertTrue(created.revoked)
+
+    def test_token_page_shows_only_own_tokens(self):
+        ApiToken.issue(self.bob, "Bob 的令牌")
+        response = self.client.get(reverse("learning_logs:api_tokens"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "测试令牌")
+        self.assertNotContains(response, "Bob 的令牌")
+
+    def test_docs_page(self):
+        response = self.client.get(reverse("learning_logs:api_docs"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/api/v1/topics/")
+
+    def test_due_cards_and_stats(self):
+        Flashcard.objects.create(user=self.alice, topic=self.topic, front="Q", back="A")
+        due = self.client.get(reverse("learning_logs:api_due_cards"), **self.auth()).json()
+        self.assertEqual(due["count"], 1)
+
+        payload = self.client.get(reverse("learning_logs:api_stats"), **self.auth()).json()
+        self.assertTrue(payload["ok"])
+        self.assertIn("streak", payload)

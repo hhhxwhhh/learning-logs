@@ -2660,6 +2660,42 @@
     color: var(--ink-soft);
   }
 
+  /* 代码块与 API 展示 --------------------------------------------------- */
+  .code-sample {
+    margin: 0;
+    padding: 0.8rem 0.9rem;
+    border-radius: 10px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+    font-size: 0.78rem;
+    line-height: 1.65;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .token-value {
+    display: inline-block;
+    padding: 0.35rem 0.6rem;
+    border-radius: 8px;
+    background: var(--bg-soft);
+    border: 1px dashed var(--line-strong);
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+    font-size: 0.82rem;
+    word-break: break-all;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: calc(var(--radius) - 4px);
+  }
+
+  .table-wrap .table {
+    min-width: 560px;
+  }
+
 /* --------------------------------------------------------------------------
    工具类
    -------------------------------------------------------------------------- */

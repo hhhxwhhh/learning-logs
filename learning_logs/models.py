@@ -5,6 +5,7 @@
 - 时间相关的计算统一放在模型方法里，模板只负责展示。
 """
 
+import secrets
 from datetime import timedelta
 
 from django.conf import settings
@@ -387,6 +388,39 @@ class Tag(models.Model):
     def hue(self):
         """由标签名派生的稳定色相，保证同名标签颜色始终一致。"""
         return sum(ord(char) * (index + 3) for index, char in enumerate(self.name)) % 360
+
+
+class ApiToken(models.Model):
+    """个人 API 令牌：用于脚本或第三方工具读取自己的学习数据。"""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="api_tokens")
+    name = models.CharField("用途", max_length=60, default="默认令牌")
+    token = models.CharField("令牌", max_length=64, unique=True, db_index=True)
+    prefix = models.CharField("前缀", max_length=12, blank=True, default="")
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    last_used_at = models.DateTimeField("最近使用", null=True, blank=True)
+    revoked = models.BooleanField("已吊销", default=False)
+
+    class Meta:
+        verbose_name = "API 令牌"
+        verbose_name_plural = "API 令牌"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} · {self.name}"
+
+    @classmethod
+    def issue(cls, user, name: str = "默认令牌") -> "ApiToken":
+        raw = secrets.token_urlsafe(32)
+        return cls.objects.create(
+            user=user, name=name[:60], token=raw, prefix=raw[:8]
+        )
+
+    def masked(self) -> str:
+        return f"{self.prefix}{'•' * 24}" if self.prefix else "•" * 24
+
+    def is_active(self) -> bool:
+        return not self.revoked
 
 
 class TaggedItem(models.Model):

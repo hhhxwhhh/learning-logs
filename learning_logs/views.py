@@ -24,6 +24,7 @@ from .forms import (
     TopicForm,
 )
 from .models import (
+    ApiToken,
     Comment,
     Entry,
     Flashcard,
@@ -563,6 +564,52 @@ def generate_cards(request, topic_id):
     return redirect("learning_logs:flashcards")
 
 
+API_ENDPOINTS = [
+    {
+        "method": "GET",
+        "path": "/api/v1/me/",
+        "desc": "账号信息与学习概览",
+        "params": "无",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v1/topics/",
+        "desc": "全部主题及进度、标签",
+        "params": "无",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v1/entries/",
+        "desc": "笔记列表，支持关键词与主题过滤",
+        "params": "q=关键词&topic=主题ID&limit=50",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v1/cards/due/",
+        "desc": "今日到期与逾期的闪卡",
+        "params": "无",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v1/sessions/",
+        "desc": "学习计时记录",
+        "params": "limit=30",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v1/stats/",
+        "desc": "连续天数、时长、主题排行等统计",
+        "params": "无",
+    },
+    {
+        "method": "POST",
+        "path": "/api/v1/entries/create/",
+        "desc": "快速写入一条笔记（可自动建主题）",
+        "params": "text=内容&topic=主题ID 或 topic_name=主题名",
+    },
+]
+
+
 FEATURE_GROUPS = [
     {
         "title": "记录与组织",
@@ -620,6 +667,10 @@ FEATURE_GROUPS = [
              "desc": "给学习设一个截止日期"},
             {"name": "数据与备份", "url": "/data/", "icon": "i-doc", "key": "x",
              "desc": "Markdown / Anki / JSON 导出与导入"},
+            {"name": "开放 API", "url": "/api/docs/", "icon": "i-spark", "key": "i",
+             "desc": "用令牌把数据接到自己的工具链"},
+            {"name": "API 令牌", "url": "/settings/api/", "icon": "i-user", "key": "",
+             "desc": "签发、吊销个人访问令牌"},
             {"name": "功能地图", "url": "/features/", "icon": "i-book", "key": "m",
              "desc": "本站全部能力与快捷键一览"},
             {"name": "个人中心", "url": "/accounts/profile/", "icon": "i-user", "key": "u",
@@ -642,6 +693,7 @@ QUICK_ACTIONS = [
     {"label": "标签管理", "url": "/tags/", "keywords": ["标签", "tag", "分类"]},
     {"label": "专注计时", "url": "/focus/", "keywords": ["专注", "番茄", "focus", "计时"]},
     {"label": "功能地图", "url": "/features/", "keywords": ["功能", "地图", "快捷键", "features"]},
+    {"label": "开放 API", "url": "/api/docs/", "keywords": ["api", "接口", "令牌", "token"]},
 ]
 
 
@@ -886,6 +938,46 @@ def features(request):
         request,
         "learning_logs/features.html",
         {"groups": FEATURE_GROUPS, "total": total},
+    )
+
+
+@login_required
+def api_tokens(request):
+    """个人 API 令牌管理：签发、吊销与用法示例。"""
+    if request.method == "POST":
+        action = request.POST.get("action", "create")
+        if action == "revoke":
+            token_id = request.POST.get("token_id")
+            updated = ApiToken.objects.filter(id=token_id, user=request.user).update(
+                revoked=True
+            )
+            messages.success(request, "令牌已吊销。" if updated else "令牌不存在。")
+        else:
+            name = (request.POST.get("name") or "默认令牌").strip()[:60]
+            record = ApiToken.issue(request.user, name)
+            request.session["new_api_token"] = record.token
+            messages.success(request, f"已签发令牌「{record.name}」，请立即复制保存。")
+        return redirect("learning_logs:api_tokens")
+
+    new_token = request.session.pop("new_api_token", None)
+    return render(
+        request,
+        "learning_logs/api_tokens.html",
+        {
+            "tokens": ApiToken.objects.filter(user=request.user),
+            "new_token": new_token,
+            "endpoints": API_ENDPOINTS,
+        },
+    )
+
+
+@login_required
+def api_docs(request):
+    """开放 API 文档页。"""
+    return render(
+        request,
+        "learning_logs/api_docs.html",
+        {"endpoints": API_ENDPOINTS, "token_count": ApiToken.objects.filter(user=request.user, revoked=False).count()},
     )
 
 

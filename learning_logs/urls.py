@@ -2,12 +2,23 @@
 
 from django.urls import path
 
-from . import views
+from . import api_views, views
 from .ai import views as ai_views
 
 app_name = "learning_logs"
 
 urlpatterns = [
+    # 开放 API
+    path("api/v1/me/", api_views.me, name="api_me"),
+    path("api/v1/topics/", api_views.topics, name="api_topics"),
+    path("api/v1/entries/", api_views.entries, name="api_entries"),
+    path("api/v1/entries/create/", api_views.quick_entry, name="api_quick_entry"),
+    path("api/v1/cards/due/", api_views.due_cards, name="api_due_cards"),
+    path("api/v1/sessions/", api_views.sessions, name="api_sessions"),
+    path("api/v1/stats/", api_views.stats_view, name="api_stats"),
+    # API 文档与令牌
+    path("settings/api/", views.api_tokens, name="api_tokens"),
+    path("api/docs/", views.api_docs, name="api_docs"),
     # 主页
     path("", views.index, name="index"),
     # 主题

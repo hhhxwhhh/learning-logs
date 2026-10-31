@@ -1,0 +1,131 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}开放 API · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">API</div>
+    <h1>开放接口</h1>
+    <p>只读为主、写入受限的 JSON 接口，用来把知迹接到你自己的工具链里。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--primary" href="{% url 'learning_logs:api_tokens' %}">
+      <svg width="16" height="16"><use href="#i-plus" /></svg>签发令牌
+    </a>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">生效令牌</span>
+    <span class="metric__value">{{ token_count }}</span>
+    <span class="metric__hint">吊销即刻失效</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">接口数量</span>
+    <span class="metric__value">{{ endpoints|length }}</span>
+    <span class="metric__hint">统一 /api/v1/ 前缀</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">认证方式</span>
+    <span class="metric__value" style="font-size: 1.2rem">Bearer Token</span>
+    <span class="metric__hint">Authorization 请求头</span>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card__head">
+    <h3>接口列表</h3>
+    <span class="tiny muted">所有响应均为 UTF-8 JSON</span>
+  </div>
+  <div class="card__body">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>方法</th>
+            <th>路径</th>
+            <th>说明</th>
+            <th>参数</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for endpoint in endpoints %}
+          <tr>
+            <td>
+              <span class="badge {% if endpoint.method == 'POST' %}badge--accent{% else %}badge--outline{% endif %}">
+                {{ endpoint.method }}
+              </span>
+            </td>
+            <td><code>{{ endpoint.path }}</code></td>
+            <td>{{ endpoint.desc }}</td>
+            <td class="tiny muted">{{ endpoint.params }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<div class="split mt-3">
+  <section class="card">
+    <div class="card__head"><h3>请求示例</h3></div>
+    <div class="card__body stack-sm">
+      <pre class="code-sample"># 读取主题列表
+curl -H "Authorization: Bearer $ZHIJI_TOKEN" \
+  {{ request.scheme }}://{{ request.get_host }}/api/v1/topics/</pre>
+      <pre class="code-sample"># 查询包含关键词的笔记
+curl -H "Authorization: Bearer $ZHIJI_TOKEN" \
+  "{{ request.scheme }}://{{ request.get_host }}/api/v1/entries/?q=ORM&amp;limit=20"</pre>
+      <pre class="code-sample"># 快速写入一条笔记
+curl -X POST -H "Authorization: Bearer $ZHIJI_TOKEN" \
+  -d "topic_name=速记" -d "text=今天的收获" \
+  {{ request.scheme }}://{{ request.get_host }}/api/v1/entries/create/</pre>
+    </div>
+  </section>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card__head"><h3>返回结构</h3></div>
+      <div class="card__body">
+        <pre class="code-sample">{
+  "ok": true,
+  "count": 2,
+  "results": [
+    {"id": 1, "text": "Django ORM", "progress": 40}
+  ]
+}</pre>
+        <p class="tiny muted mt-2">出错时返回 <code>{"ok": false, "error": "..."}</code> 与对应 HTTP 状态码。</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head"><h3>安全约定</h3></div>
+      <div class="card__body">
+        <div class="list">
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">只返回自己的数据</span>
+              <span class="list__meta">令牌与用户绑定，越权一律 404</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">令牌只明文出现一次</span>
+              <span class="list__meta">页面仅展示掩码，请自行保存</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">吊销立即生效</span>
+              <span class="list__meta">不需要等待缓存过期</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
