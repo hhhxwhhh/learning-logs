@@ -1292,3 +1292,52 @@ class WikiLinkTests(BaseTestCase):
         response = self.client.get(reverse("learning_logs:entry_comments", args=[entry.id]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f"/topic/{target.id}")
+
+
+class TopicFlagTests(BaseTestCase):
+    """主题置顶与归档。"""
+
+    def test_toggle_pinned(self):
+        url = reverse("learning_logs:toggle_topic_flag", args=[self.topic.id, "pinned"])
+        self.client.post(url)
+        self.topic.refresh_from_db()
+        self.assertTrue(self.topic.pinned)
+
+        self.client.post(url)
+        self.topic.refresh_from_db()
+        self.assertFalse(self.topic.pinned)
+
+    def test_toggle_archived_hides_from_default_list(self):
+        url = reverse("learning_logs:toggle_topic_flag", args=[self.topic.id, "archived"])
+        self.client.post(url)
+        self.topic.refresh_from_db()
+        self.assertTrue(self.topic.archived)
+
+        response = self.client.get(reverse("learning_logs:topics"))
+        self.assertNotContains(response, "Django ORM")
+
+        response = self.client.get(reverse("learning_logs:topics"), {"archived": "1"})
+        self.assertContains(response, "Django ORM")
+
+    def test_unknown_flag_is_404(self):
+        response = self.client.post(
+            reverse("learning_logs:toggle_topic_flag", args=[self.topic.id, "nope"])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_cannot_flag_others_topic(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        response = self.client.post(
+            reverse("learning_logs:toggle_topic_flag", args=[bob_topic.id, "pinned"])
+        )
+        self.assertEqual(response.status_code, 404)
+        bob_topic.refresh_from_db()
+        self.assertFalse(bob_topic.pinned)
+
+    def test_pinned_topic_comes_first(self):
+        other = Topic.objects.create(text="另一个主题", owner=self.alice)
+        other.pinned = True
+        other.save(update_fields=["pinned"])
+        response = self.client.get(reverse("learning_logs:topics"))
+        titles = [item.text for item in response.context["topics"]]
+        self.assertEqual(titles[0], "另一个主题")

@@ -82,6 +82,11 @@ urlpatterns = [
     path("tags/", views.tags, name="tags"),
     path("tags/<int:tag_id>/", views.tag_detail, name="tag_detail"),
     path("topics/<int:topic_id>/suggest-tags/", views.suggest_tags, name="suggest_tags"),
+    path(
+        "topics/<int:topic_id>/flag/<str:flag>/",
+        views.toggle_topic_flag,
+        name="toggle_topic_flag",
+    ),
     # 知识图谱
     path("graph/", views.graph, name="graph"),
     # 功能地图

@@ -78,11 +78,18 @@ def index(request):
 @login_required
 def topics(request):
     """显示所有的主题"""
-    topics=Topic.objects.filter(owner=request.user).order_by('date_added')
-    topics = list(topics)
+    show_archived = request.GET.get("archived") == "1"
+    queryset = Topic.objects.filter(owner=request.user)
+    if not show_archived:
+        queryset = queryset.filter(archived=False)
+    topics = list(queryset.order_by("-pinned", "date_added"))
     for item in topics:
         item.tag_list = tags_service.tags_of(item)
-    context={'topics':topics}
+    context = {
+        'topics': topics,
+        'show_archived': show_archived,
+        'archived_count': Topic.objects.filter(owner=request.user, archived=True).count(),
+    }
     return render(request,'learning_logs/topics.html',context)
 
 @login_required
@@ -642,6 +649,8 @@ FEATURE_GROUPS = [
              "desc": "按主题拆分知识，一个主题一棵树"},
             {"name": "新建主题", "url": "/new_topic/", "icon": "i-plus", "key": "n",
              "desc": "开一个新的学习方向，配好标签"},
+            {"name": "双链笔记", "url": "/features/", "icon": "i-layers", "key": "",
+             "desc": "在笔记里写 [[主题名]] 即可互链，对方显示反向链接"},
             {"name": "学习路径", "url": "/learning-paths/", "icon": "i-route", "key": "p",
              "desc": "把多个主题串成一条有顺序的路线"},
             {"name": "标签", "url": "/tags/", "icon": "i-tag", "key": "",
@@ -1295,3 +1304,21 @@ def timeline(request):
         "learning_logs/timeline.html",
         timeline_service.build(request.user, months=months),
     )
+
+
+@login_required
+@require_POST
+def toggle_topic_flag(request, topic_id, flag):
+    """切换主题的置顶 / 归档状态。"""
+    topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
+    if flag == "pinned":
+        topic.pinned = not topic.pinned
+        topic.save(update_fields=["pinned"])
+        messages.success(request, "已置顶这个主题。" if topic.pinned else "已取消置顶。")
+    elif flag == "archived":
+        topic.archived = not topic.archived
+        topic.save(update_fields=["archived"])
+        messages.success(request, "主题已归档。" if topic.archived else "主题已恢复。")
+    else:
+        raise Http404("未知的状态")
+    return redirect(request.POST.get("next") or "learning_logs:topics")
