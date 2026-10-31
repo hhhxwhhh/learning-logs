@@ -30,7 +30,9 @@ def update_analytics_on_study_session(sender, instance, created, **kwargs):
         user=user,
         start_time__date=session_date
     )
-    metric.total_study_time = sum((s.duration for s in day_sessions), timedelta(0))
+    metric.total_study_time = sum(
+        (s.duration for s in day_sessions if s.duration), timedelta(0)
+    )
     
     # 计算学习的不同主题数
     metric.topics_studied = day_sessions.values('topic').distinct().count()
@@ -39,11 +41,13 @@ def update_analytics_on_study_session(sender, instance, created, **kwargs):
     # 更新主题分析
     topic = instance.topic
     analytics, created = TopicAnalytics.objects.get_or_create(topic=topic)
-    analytics.last_studied = timezone.now()
+    analytics.last_studied = timezone.localdate()
     
     # 计算主题总学习时间
     topic_sessions = StudySession.objects.filter(topic=topic)
-    analytics.total_study_time = sum((s.duration for s in topic_sessions), timedelta(0))
+    analytics.total_study_time = sum(
+        (s.duration for s in topic_sessions if s.duration), timedelta(0)
+    )
     
     # 更新学习频率
     analytics.study_frequency = topic_sessions.count()

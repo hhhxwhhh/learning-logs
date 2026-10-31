@@ -1,80 +1,120 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth import login, logout as auth_logout, authenticate
-from .models import CustomUser  # 导入自定义用户模型
-from .forms import CustomUserChangeForm, CustomUserCreationForm  # 合并导入
-from django.contrib.auth.forms import PasswordChangeForm
-from django.contrib.auth import update_session_auth_hash
+"""账号相关视图：注册、登录、个人中心、修改密码。"""
+
 from django.contrib import messages
-@login_required
-def edit_profile(request):
-    if request.method == 'POST':
-        form = CustomUserChangeForm(request.POST, instance=request.user)
-        if form.is_valid():
-            form.save()
-            return redirect('profile')
-    else:
-        form = CustomUserChangeForm(instance=request.user)
-    return render(request, 'accounts/edit_profile.html', {'form': form})
+from django.contrib.auth import (
+    authenticate,
+    login,
+    logout as auth_logout,
+    update_session_auth_hash,
+)
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm
+from django.db.models import Count
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
+
+from learning_logs.models import Entry, StudySession, Topic
+
+from .forms import CustomUserChangeForm, CustomUserCreationForm
+
 
 def register(request):
-    if request.method == 'POST':
-        form = CustomUserCreationForm(request.POST)
+    if request.user.is_authenticated:
+        return redirect("learning_logs:dashboard")
+
+    if request.method == "POST":
+        form = CustomUserCreationForm(request.POST, request.FILES)
         if form.is_valid():
             user = form.save()
             login(request, user)
-            return redirect('learning_logs:index')
+            messages.success(request, "欢迎加入，开始记录你的第一条学习笔记吧。")
+            return redirect("learning_logs:topics")
     else:
         form = CustomUserCreationForm()
-    return render(request, 'accounts/register.html', {'form': form})
 
-def logout(request):
-    if request.method == 'POST':
-        auth_logout(request)
-        return redirect('learning_logs:index')
-    else:
-        return render(request, 'accounts/logout.html')
+    return render(request, "accounts/register.html", {"form": form})
 
-@login_required
-def profile(request):
-    """ 处理头像上传 """
-    if request.method == "POST":
-        avatar = request.FILES.get('avatar_url')
-        if avatar:
-            user = request.user
-            user.avatar_url = avatar  # 确保模型中存在此字段
-            user.save()
-        return redirect('accounts:profile')
-    return render(request, 'accounts/profile.html')
 
 def user_login(request):
-    if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
+    if request.user.is_authenticated:
+        return redirect("learning_logs:dashboard")
+
+    error = None
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            return redirect('learning_logs:index')
-        else:
-            return render(request, 'accounts/login.html', {'error': '用户名或密码错误'})
-    return render(request, 'accounts/login.html')
+            next_url = request.POST.get("next") or request.GET.get("next")
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                return redirect(next_url)
+            return redirect("learning_logs:dashboard")
+        error = "用户名或密码不正确，请重试。"
+
+    return render(
+        request,
+        "accounts/login.html",
+        {"error": error, "next": request.GET.get("next", "")},
+    )
+
+
+def logout(request):
+    """登出必须是 POST，避免被第三方页面 GET 触发。"""
+    if request.method == "POST":
+        auth_logout(request)
+        messages.info(request, "你已安全退出登录。")
+    return redirect("learning_logs:index")
+
+
+@login_required
+def profile(request):
+    topics = Topic.objects.filter(owner=request.user)
+    context = {
+        "topic_count": topics.count(),
+        "entry_count": Entry.objects.filter(topic__owner=request.user).count(),
+        "session_count": StudySession.objects.filter(user=request.user).count(),
+        "completed_entries": Entry.objects.filter(
+            topic__owner=request.user, completed=True
+        ).count(),
+        "top_topics": topics.annotate(entry_count=Count("entry")).order_by("-entry_count")[:5],
+        "password_form": PasswordChangeForm(request.user),
+    }
+    return render(request, "accounts/profile.html", context)
+
+
+@login_required
+def edit_profile(request):
+    if request.method == "POST":
+        form = CustomUserChangeForm(request.POST, request.FILES, instance=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "资料已更新。")
+            return redirect("accounts:profile")
+    else:
+        form = CustomUserChangeForm(instance=request.user)
+    return render(request, "accounts/edit_profile.html", {"form": form})
+
+
 @login_required
 def change_password(request):
-    if request.method == 'POST':
-        form = PasswordChangeForm(request.user, request.POST)
-        if form.is_valid():
-            user = form.save()
-            update_session_auth_hash(request, user)  # 保持用户登录状态
-            messages.success(request, 'Your password was successfully updated!')
-            return redirect('accounts:profile')  # 重定向到用户的个人资料页面
-        else:
-            # 表单无效时的处理
-            error_messages = []
-            for field, errors in form.errors.items():
-                for error in errors:
-                    error_messages.append(f"{field}: {error}")
-            
-            messages.error(request, "Please correct the errors below: " + ", ".join(error_messages))
-    
-    # 对于非POST请求或表单无效的情况，重定向到个人资料页面
-    return redirect('accounts:profile')
+    if request.method != "POST":
+        return redirect(reverse("accounts:profile") + "#security")
+
+    form = PasswordChangeForm(request.user, request.POST)
+    if form.is_valid():
+        user = form.save()
+        update_session_auth_hash(request, user)
+        messages.success(request, "密码修改成功。")
+    else:
+        messages.error(
+            request,
+            "密码修改失败，请检查输入："
+            + "；".join(f"{field}: {', '.join(errors)}" for field, errors in form.errors.items()),
+        )
+    return redirect(reverse("accounts:profile") + "#security")

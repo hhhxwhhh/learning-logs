@@ -4,18 +4,8 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -25,17 +15,30 @@ var/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-media
+staticfiles/
+media/avatars/
 
-# Virtual Environment
+# 环境变量
+.env
+.env.*
+!.env.example
+
+# 虚拟环境
 venv/
+.venv/
 ENV/
+env/
 
-# IDE files
+# 测试与缓存
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# Secret keys
-.env
+.DS_Store

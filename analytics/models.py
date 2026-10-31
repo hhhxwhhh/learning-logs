@@ -61,7 +61,7 @@ class TopicAnalytics(models.Model):
         """计算自上次学习的天数"""
         if not self.last_studied:
             return None
-        return (timezone.now()-self.last_studied).days
+        return (timezone.localdate() - self.last_studied).days
     
     def get_study_frequency(self):
         """计算学习频率"""

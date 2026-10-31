@@ -1,20 +1,37 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib import messages
-from django.shortcuts import render, redirect, get_object_or_404
-from .models import AIInteraction, LearningPath, PathStep, StepResource, Topic, Entry, Comment,StudySession,LearningGoal
-from .forms import LearningPathForm, PathStepForm, StepResourceForm, TopicForm, EntryForm, CommentForm
 from django.contrib.auth.decorators import login_required
-from django.http import Http404
-from django.db.models import Q, Count, Sum, Avg
+from django.db.models import Count, Sum
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from datetime import timedelta
+
+from .forms import (
+    AIFeatureForm,
+    AIQuestionForm,
+    CommentForm,
+    EntryForm,
+    LearningPathForm,
+    PathStepForm,
+    StepResourceForm,
+    TopicForm,
+)
+from .models import (
+    AIInteraction,
+    Entry,
+    LearningGoal,
+    LearningPath,
+    PathStep,
+    StepResource,
+    StudySession,
+    Topic,
+)
+from .utils.markdown import render_markdown
 from .utils.ollama_client import OllamaClient
-from .forms import AIQuestionForm, AIFeatureForm,AIQuestionForm
-import markdown
-from django.http import JsonResponse
-from django.db import models
-import json
-app_name = 'learning_logs'
+
+app_name = "learning_logs"
 # Create your views here.
 def index(request):
     #学习笔记的主页
@@ -30,9 +47,7 @@ def topics(request):
 @login_required
 def topic(request, topic_id):
     """显示单个主题及其所有条目"""
-    topic = get_object_or_404(Topic, id=topic_id)
-    # 确认请求的用户是主题所有者
-    check_topic_owner(topic, request.user)
+    topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
     
     entries = topic.entry_set.order_by('-date_added')
     
@@ -57,7 +72,7 @@ def topic(request, topic_id):
 
 @login_required
 def new_entry(request, topic_id):
-   topic = Topic.objects.get(id=topic_id)
+   topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
    if request.method != 'POST':
        # 未提交数据，创建一个空表单
        form = EntryForm()
@@ -94,9 +109,8 @@ def new_topic(request):
 @login_required
 def edit_entry(request,entry_id):
     #编辑既有的条目
-    entry=Entry.objects.get(id=entry_id)
-    topic=entry.topic
-    #确认请求的主题是否属于当前的用户
+    entry = get_object_or_404(Entry, id=entry_id, topic__owner=request.user)
+    topic = entry.topic
     if request.method!='POST':
         #初次请求，使用当前条目填充表单
         form=EntryForm(instance=entry)
@@ -111,21 +125,22 @@ def edit_entry(request,entry_id):
 
 @login_required
 def delete_entry(request, entry_id):
-    entry = get_object_or_404(Entry, id=entry_id)
+    entry = get_object_or_404(Entry, id=entry_id, topic__owner=request.user)
     topic = entry.topic
-    # 确保当前用户是主题的所有者
-    if topic.owner != request.user:
-        raise Http404
     if request.method == 'POST':
         entry.delete()
         return redirect('learning_logs:topic', topic_id=topic.id)
     # 如果不是 POST 请求，返回主题页面
     return redirect('learning_logs:topic', topic_id=topic.id)
 
+@login_required
 def search(request):
-    query = request.GET.get('q', '')  # 获取搜索关键词
-    topics = Topic.objects.filter(text__icontains=query)  # 搜索主题
-    entries = Entry.objects.filter(text__icontains=query)  # 搜索条目
+    query = request.GET.get('q', '').strip()
+    # 只在自己的数据里搜索，避免越权读取他人笔记
+    topics = Topic.objects.filter(owner=request.user, text__icontains=query)
+    entries = Entry.objects.filter(
+        topic__owner=request.user, text__icontains=query
+    ).select_related('topic')
     context = {
         'query': query,
         'topics': topics,
@@ -135,8 +150,8 @@ def search(request):
 
 @login_required
 def entry_comments(request, entry_id):
-    entry = get_object_or_404(Entry, id=entry_id)
-    comments = entry.comments.all()  # 获取与该条目相关的所有评论
+    entry = get_object_or_404(Entry, id=entry_id, topic__owner=request.user)
+    comments = entry.comments.all()
 
     if request.method == 'POST':
         form = CommentForm(request.POST)
@@ -155,10 +170,7 @@ def entry_comments(request, entry_id):
 @login_required
 def delete_topic(request, topic_id):
     """删除指定的主题"""
-    topic = get_object_or_404(Topic, id=topic_id)
-    if topic.owner != request.user:
-        # 如果当前用户不是主题的所有者，禁止删除
-        raise Http404
+    topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
     if request.method == 'POST':
         topic.delete()
         return redirect('learning_logs:topics')
@@ -252,7 +264,7 @@ def goals(request):
 @login_required
 def toggle_goal(request, goal_id):
     """切换目标完成状态"""
-    goal = LearningGoal.objects.get(id=goal_id, user=request.user)
+    goal = get_object_or_404(LearningGoal, id=goal_id, user=request.user)
     goal.completed = not goal.completed
     goal.save()
     return redirect('learning_logs:goals')
@@ -260,7 +272,7 @@ def toggle_goal(request, goal_id):
 @login_required
 def start_session(request, topic_id):
     """开始一个学习会话"""
-    topic = Topic.objects.get(id=topic_id, owner=request.user)
+    topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
     
     # 创建一个新会话
     session = StudySession.objects.create(
@@ -445,9 +457,7 @@ def delete_learning_path(request, path_id):
 @login_required
 def ai_assistant(request, topic_id):
     """AI学习助手"""
-    topic = get_object_or_404(Topic, id=topic_id)
-    # 确认用户是否有权限访问该主题
-    check_topic_owner(topic, request.user)
+    topic = get_object_or_404(Topic, id=topic_id, owner=request.user)
     
     # 获取该topic的所有entry
     entries = topic.entry_set.all()
@@ -495,7 +505,7 @@ def ai_assistant(request, topic_id):
                 answer = client.answer_question(question, entries_text)
                 
                 # 将markdown格式的回答转换为HTML
-                answer_html = markdown.markdown(answer)
+                answer_html = render_markdown(answer)
                 
                 # 保存交互到数据库
                 interaction = AIInteraction.objects.create(
@@ -602,7 +612,7 @@ def ai_assistant(request, topic_id):
                     raise ValueError("生成的结果为空")
                 
                 # 将markdown格式的结果转换为HTML
-                result_html = markdown.markdown(result)
+                result_html = render_markdown(result)
                 
                 # 保存交互到数据库
                 interaction = AIInteraction.objects.create(
@@ -667,15 +677,13 @@ def ai_assistant(request, topic_id):
     # 如果不是POST请求或者没有提交任何表单，显示页面
     return render(request, 'learning_logs/ai_assistant.html', context)
 
-import markdown
-
 @login_required
 def interaction_detail(request, interaction_id):
     """获取交互详情的API"""
     interaction = get_object_or_404(AIInteraction, id=interaction_id, user=request.user)
     
     # 转换 Markdown 为 HTML
-    response_html = markdown.markdown(interaction.response)
+    response_html = render_markdown(interaction.response)
     
     data = {
         'id': interaction.id,
