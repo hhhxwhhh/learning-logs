@@ -1028,6 +1028,23 @@ class TopicFilterTests(BaseTestCase):
         self.assertContains(response, "筛选测试")
 
 
+class TodayTodoTests(BaseTestCase):
+    """今日速览里带出最紧要的待办。"""
+
+    def test_today_shows_open_todos(self):
+        Entry.objects.create(topic=self.topic, text="- [ ] 今天要做的事")
+        response = self.client.get(reverse("learning_logs:today"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "今天要做的事")
+        self.assertEqual(response.context["open_todo_count"], 1)
+
+    def test_today_counts_only_open_todos(self):
+        Entry.objects.create(topic=self.topic, text="- [ ] 未完成的\n- [x] 已完成的")
+        response = self.client.get(reverse("learning_logs:today"))
+        self.assertEqual(response.context["open_todo_count"], 1)
+        self.assertEqual(len(response.context["open_todos"]), 1)
+
+
 class PwaUpdateTests(BaseTestCase):
     def test_service_worker_caches_new_assets(self):
         response = self.client.get(reverse("service_worker"))

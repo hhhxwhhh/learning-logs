@@ -1126,6 +1126,8 @@ def today(request):
         "recent_topics": Topic.objects.filter(owner=user).order_by("-date_added")[:5],
         "goals": stats.upcoming_goals(user, limit=3),
         "week_minutes": stats.range_minutes(user, 7),
+        "open_todos": todos_service.scan(user, only_open=True)[:5],
+        "open_todo_count": todos_service.summarize(todos_service.scan(user))["open"],
     }
     return render(request, "learning_logs/today.html", context)
 

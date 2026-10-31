@@ -68,6 +68,16 @@
             </div>
             <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:topics' %}">去记录</a>
           </li>
+          {% for todo in open_todos %}
+          <li class="todo-item">
+            <span class="todo-item__dot"></span>
+            <div class="todo-item__main">
+              <div class="todo-item__title">{{ todo.text|truncatechars:40 }}</div>
+              <div class="tiny muted">{{ todo.topic_text }}</div>
+            </div>
+            <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:todos' %}">去处理</a>
+          </li>
+          {% endfor %}
           {% for goal in goals %}
           <li class="todo-item">
             <span class="todo-item__dot"></span>
@@ -128,6 +138,9 @@
           </a>
           <a class="quick-tile" href="{% url 'learning_logs:weekly_report' %}">
             <svg width="18" height="18"><use href="#i-chart" /></svg>学习周报
+          </a>
+          <a class="quick-tile" href="{% url 'learning_logs:todos' %}">
+            <svg width="18" height="18"><use href="#i-check" /></svg>待办 {{ open_todo_count }}
           </a>
         </div>
       </div>
