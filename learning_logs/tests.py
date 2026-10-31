@@ -9,8 +9,8 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import ChatSession, Entry, Flashcard, LearningPath, Topic
-from .services import achievements, export, garden, report, search, stats
+from .models import ChatSession, Entry, Flashcard, LearningPath, StudySession, Tag, Topic
+from .services import achievements, export, garden, graph, report, search, stats, tags
 
 
 class FakeProvider:
@@ -530,3 +530,156 @@ class PWATests(TestCase):
         response = self.client.get(reverse("offline"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "没有网络")
+
+
+class TagTests(BaseTestCase):
+    """标签解析、同步与标签云。"""
+
+    def test_parse_tags_dedup_and_limit(self):
+        names = tags.parse_tags("算法, 面试 算法、Python，Python / 复盘")
+        self.assertEqual(names[:2], ["算法", "面试"])
+        self.assertEqual(names.count("Python"), 1)
+        self.assertLessEqual(len(names), tags.MAX_TAGS)
+
+    def test_sync_tags_replaces_previous(self):
+        tags.sync_tags(self.alice, self.topic, "后端, 数据库")
+        self.assertEqual(sorted(t.name for t in tags.tags_of(self.topic)), ["后端", "数据库"])
+
+        tags.sync_tags(self.alice, self.topic, "后端, 缓存")
+        self.assertEqual(sorted(t.name for t in tags.tags_of(self.topic)), ["后端", "缓存"])
+
+    def test_prune_removes_orphan_tags(self):
+        tags.sync_tags(self.alice, self.topic, "临时")
+        self.assertEqual(Tag.objects.filter(user=self.alice, name="临时").count(), 1)
+        tags.sync_tags(self.alice, self.topic, "")
+        self.assertEqual(Tag.objects.filter(user=self.alice, name="临时").count(), 0)
+
+    def test_tags_are_per_user(self):
+        tags.sync_tags(self.alice, self.topic, "共享")
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        tags.sync_tags(self.bob, bob_topic, "共享")
+        self.assertEqual(Tag.objects.filter(name="共享").count(), 2)
+
+    def test_cloud_weights_and_pages(self):
+        tags.sync_tags(self.alice, self.topic, "核心")
+        Entry.objects.create(topic=self.topic, text="另一条")
+        tags.sync_tags(self.alice, self.entry, "核心")
+        cloud = tags.cloud(self.alice)
+        self.assertEqual(cloud[0]["name"], "核心")
+        self.assertEqual(cloud[0]["count"], 2)
+
+        response = self.client.get(reverse("learning_logs:tags"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "核心")
+
+    def test_tag_detail_page(self):
+        tags.sync_tags(self.alice, self.topic, "图谱测试")
+        tag = Tag.objects.get(user=self.alice, name="图谱测试")
+        response = self.client.get(reverse("learning_logs:tag_detail", args=[tag.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Django ORM")
+
+    def test_tag_detail_isolates_users(self):
+        tags.sync_tags(self.alice, self.topic, "私有")
+        tag = Tag.objects.get(user=self.alice, name="私有")
+        self.client.force_login(self.bob)
+        response = self.client.get(reverse("learning_logs:tag_detail", args=[tag.id]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_topic_page_can_update_tags(self):
+        response = self.client.post(
+            reverse("learning_logs:topic", args=[self.topic.id]), {"tags": "页面, 表单"}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(sorted(t.name for t in tags.tags_of(self.topic)), ["表单", "页面"])
+
+    def test_new_entry_keeps_tags(self):
+        self.client.post(
+            reverse("learning_logs:new_entry", args=[self.topic.id]),
+            {"text": "带标签的笔记", "tags": "笔记标签"},
+        )
+        entry = Entry.objects.get(text="带标签的笔记")
+        self.assertEqual([t.name for t in tags.tags_of(entry)], ["笔记标签"])
+
+
+class GraphTests(BaseTestCase):
+    """知识图谱的坐标计算与关联边。"""
+
+    def test_shared_tags_create_edges(self):
+        second = Topic.objects.create(text="Redis 缓存", owner=self.alice)
+        tags.sync_tags(self.alice, self.topic, "缓存, 后端")
+        tags.sync_tags(self.alice, second, "缓存")
+        data = graph.build(self.alice)
+
+        self.assertEqual(len(data["nodes"]), 2)
+        self.assertEqual(len(data["edges"]), 1)
+        self.assertEqual(data["edges"][0]["weight"], 1)
+        self.assertEqual(data["linked"], 2)
+        self.assertEqual(data["isolated"], [])
+
+        for node in data["nodes"]:
+            self.assertGreaterEqual(node["x"], 0)
+            self.assertLessEqual(node["x"], data["width"])
+            self.assertGreaterEqual(node["y"], 0)
+            self.assertLessEqual(node["y"], data["height"])
+
+    def test_graph_page_renders(self):
+        tags.sync_tags(self.alice, self.topic, "渲染")
+        response = self.client.get(reverse("learning_logs:graph"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Django ORM")
+
+    def test_empty_graph_is_safe(self):
+        Topic.objects.filter(owner=self.alice).delete()
+        data = graph.build(self.alice)
+        self.assertEqual(data["nodes"], [])
+        self.assertEqual(data["edges"], [])
+
+
+class TodayTests(BaseTestCase):
+    def test_today_page(self):
+        response = self.client.get(reverse("learning_logs:today"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "今日速览")
+
+    def test_counts_today_only(self):
+        Entry.objects.create(topic=self.topic, text="今天写的")
+        old = Entry.objects.create(topic=self.topic, text="很久以前写的")
+        Entry.objects.filter(id=old.id).update(date_added=timezone.now() - timedelta(days=60))
+
+        response = self.client.get(reverse("learning_logs:today"))
+        self.assertEqual(response.status_code, 200)
+        # 基类已经创建了一条今天的笔记，这里应该是 2
+        self.assertEqual(response.context["entry_count_today"], 2)
+
+
+class FocusTests(BaseTestCase):
+    def test_focus_page(self):
+        response = self.client.get(reverse("learning_logs:focus"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "专注")
+
+    def test_focus_log_records_session(self):
+        response = self.client.post(
+            reverse("learning_logs:focus_log"),
+            {"minutes": "25", "topic": self.topic.id},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        session = StudySession.objects.get(user=self.alice)
+        self.assertEqual(session.duration_minutes(), 25)
+
+    def test_focus_log_rejects_bad_input(self):
+        response = self.client.post(
+            reverse("learning_logs:focus_log"), {"minutes": "0", "topic": self.topic.id}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(StudySession.objects.filter(user=self.alice).count(), 0)
+
+    def test_focus_log_requires_own_topic(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        response = self.client.post(
+            reverse("learning_logs:focus_log"), {"minutes": "10", "topic": bob_topic.id}
+        )
+        self.assertEqual(response.status_code, 400)

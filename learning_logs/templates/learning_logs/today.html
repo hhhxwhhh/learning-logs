@@ -1,0 +1,160 @@
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
+
+{% block title %}今日速览 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Today</div>
+    <h1>今日速览</h1>
+    <p>{{ today|date:"Y年m月d日" }} · 先看今天该做什么，再回看过去的自己。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:focus' %}">开始专注</a>
+    <a class="btn" href="{% url 'learning_logs:new_topic' %}">
+      <svg width="16" height="16"><use href="#i-plus" /></svg>新建主题
+    </a>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">今日笔记</span>
+    <span class="metric__value">{{ entry_count_today }}</span>
+    <span class="tiny muted">条新记录</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">今日专注</span>
+    <span class="metric__value">{{ minutes_text }}</span>
+    <span class="tiny muted">近 7 天 {{ week_minutes|dur }}</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">连续学习</span>
+    <span class="metric__value">{{ streak }}</span>
+    <span class="tiny muted">天</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">待复习闪卡</span>
+    <span class="metric__value">{{ due_count }}</span>
+    <span class="tiny muted">张到期</span>
+  </div>
+</div>
+
+<div class="split mt-3">
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>今日待办</h3>
+        <span class="tiny muted">需要你今天处理的事</span>
+      </div>
+      <div class="card__body">
+        <ul class="todo-list">
+          <li class="todo-item">
+            <span class="todo-item__dot {% if due_count %}is-active{% endif %}"></span>
+            <div class="todo-item__main">
+              <div class="todo-item__title">复习 {{ due_count }} 张到期闪卡</div>
+              <div class="tiny muted">间隔重复到期，越早复习记得越牢</div>
+            </div>
+            <a class="btn btn--sm {% if due_count %}btn--primary{% else %}btn--ghost{% endif %}" href="{% url 'learning_logs:review' %}">
+              去复习
+            </a>
+          </li>
+          <li class="todo-item">
+            <span class="todo-item__dot {% if not entry_count_today %}is-active{% endif %}"></span>
+            <div class="todo-item__main">
+              <div class="todo-item__title">写一条今天的笔记</div>
+              <div class="tiny muted">今天已写 {{ entry_count_today }} 条</div>
+            </div>
+            <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:topics' %}">去记录</a>
+          </li>
+          {% for goal in goals %}
+          <li class="todo-item">
+            <span class="todo-item__dot"></span>
+            <div class="todo-item__main">
+              <div class="todo-item__title">{{ goal.title }}</div>
+              <div class="tiny muted">截止 {{ goal.target_date|date:"m-d" }}</div>
+            </div>
+            <a class="btn btn--sm btn--ghost" href="{% url 'learning_logs:goals' %}">查看</a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>记忆闪回</h3>
+        <span class="tiny muted">30 天前的自己写了什么</span>
+      </div>
+      <div class="card__body">
+        {% if flashbacks %}
+        <div class="list">
+          {% for entry in flashbacks %}
+          <a class="list__item list__item--link" href="{% url 'learning_logs:topic' entry.topic.id %}">
+            <div class="list__main">
+              <span class="list__title">{{ entry.text|md_plain|truncatechars:56 }}</span>
+              <span class="list__meta">
+                <span>{{ entry.topic.text }}</span>
+                <span>{{ entry.date_added|date:"Y-m-d" }}</span>
+              </span>
+            </div>
+            <svg width="16" height="16" class="muted"><use href="#i-arrow-right" /></svg>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted small">还没有足够久远的历史笔记，再积累一段时间就有闪回了。</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>快捷入口</h3>
+      </div>
+      <div class="card__body">
+        <div class="quick-grid">
+          <a class="quick-tile" href="{% url 'learning_logs:focus' %}">
+            <svg width="18" height="18"><use href="#i-timer" /></svg>专注计时
+          </a>
+          <a class="quick-tile" href="{% url 'learning_logs:graph' %}">
+            <svg width="18" height="18"><use href="#i-graph" /></svg>知识图谱
+          </a>
+          <a class="quick-tile" href="{% url 'learning_logs:garden' %}">
+            <svg width="18" height="18"><use href="#i-sprout" /></svg>学习花园
+          </a>
+          <a class="quick-tile" href="{% url 'learning_logs:weekly_report' %}">
+            <svg width="18" height="18"><use href="#i-chart" /></svg>学习周报
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>最近主题</h3>
+      </div>
+      <div class="card__body">
+        {% if recent_topics %}
+        <div class="list">
+          {% for item in recent_topics %}
+          <a class="list__item list__item--link" href="{% url 'learning_logs:topic' item.id %}">
+            <div class="list__main">
+              <span class="list__title">{{ item.text }}</span>
+              <span class="list__meta">{{ item.total_items }} 条记录</span>
+            </div>
+            <span class="tiny muted">{{ item.last_activity|date:"m-d" }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted small">还没有主题。</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

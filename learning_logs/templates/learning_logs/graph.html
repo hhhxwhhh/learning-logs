@@ -1,0 +1,122 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}知识图谱 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Knowledge Graph</div>
+    <h1>知识图谱</h1>
+    <p>共享同一个标签的主题会连成一张网，越靠在一起的知识越相关。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:tags' %}">管理标签</a>
+    <a class="btn" href="{% url 'learning_logs:new_topic' %}">
+      <svg width="16" height="16"><use href="#i-plus" /></svg>新建主题
+    </a>
+  </div>
+</div>
+
+{% if nodes %}
+<div class="split">
+  <section class="card graph-card">
+    <div class="card__head">
+      <h3>主题关联网络</h3>
+      <span class="tiny muted">{{ nodes|length }} 个节点 · {{ edges|length }} 条关联</span>
+    </div>
+    <div class="card__body">
+      <svg
+        class="graph"
+        viewBox="0 0 {{ width }} {{ height }}"
+        role="img"
+        aria-label="主题之间的关联网络"
+      >
+        <g class="graph__edges">
+          {% for edge in edges %}
+          <line
+            x1="{{ edge.x1 }}"
+            y1="{{ edge.y1 }}"
+            x2="{{ edge.x2 }}"
+            y2="{{ edge.y2 }}"
+            stroke-width="{{ edge.width }}"
+            opacity="{% if edge.weight > 1 %}0.55{% else %}0.32{% endif %}"
+          />
+          {% endfor %}
+        </g>
+        <g class="graph__nodes">
+          {% for node in nodes %}
+          <a href="{{ node.url }}" class="graph__node">
+            <title>{{ node.name }} · {{ node.entries }} 条记录 · 完成 {{ node.progress }}%</title>
+            <circle cx="{{ node.x }}" cy="{{ node.y }}" r="{{ node.r }}" class="graph__halo" />
+            <circle cx="{{ node.x }}" cy="{{ node.y }}" r="{{ node.r }}" class="graph__dot" />
+            <text x="{{ node.x }}" y="{{ node.y }}" text-anchor="middle" dy="0.35em">
+              {{ node.name|truncatechars:8 }}
+            </text>
+          </a>
+          {% endfor %}
+        </g>
+      </svg>
+      <p class="tiny muted center mt-2">点击节点可以直接进入对应主题。</p>
+    </div>
+  </section>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>强关联</h3>
+        <span class="tiny muted">共享标签最多的组合</span>
+      </div>
+      <div class="card__body">
+        {% if related %}
+        <div class="list">
+          {% for pair in related %}
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">
+                <a href="{{ pair.source_url }}">{{ pair.source }}</a>
+                <span class="muted tiny"> · </span>
+                <a href="{{ pair.target_url }}">{{ pair.target }}</a>
+              </span>
+              <span class="list__meta">共享 {{ pair.weight }} 个标签</span>
+            </div>
+            <span class="badge badge--accent">×{{ pair.weight }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted small">还没有连线。给主题打上相同的标签，它们就会靠拢。</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>孤立知识</h3>
+        <span class="tiny muted">尚未与任何主题产生联系</span>
+      </div>
+      <div class="card__body">
+        {% if isolated %}
+        <div class="chip-row">
+          {% for name in isolated %}
+          <span class="chip">{{ name }}</span>
+          {% endfor %}
+        </div>
+        <p class="tiny muted mt-2">给这些主题补一个标签，就能把它们接入网络。</p>
+        {% else %}
+        <p class="muted small">全部主题都已经接入网络，知识没有孤岛。</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% else %}
+<section class="card">
+  <div class="empty">
+    <div class="empty__icon"><svg width="24" height="24"><use href="#i-graph" /></svg></div>
+    <h3>图谱还空着</h3>
+    <p class="muted">先创建几个主题，并给它们打上标签，这里就会长出关联网络。</p>
+    <a class="btn btn--primary mt-2" href="{% url 'learning_logs:new_topic' %}">新建主题</a>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -67,6 +67,12 @@
             <svg width="16" height="16"><use href="#i-sprout" /></svg>花园
           </a>
           <a
+            class="nav__link {% if request.resolver_match.url_name == 'graph' or request.resolver_match.url_name == 'tags' or request.resolver_match.url_name == 'tag_detail' %}is-active{% endif %}"
+            href="{% url 'learning_logs:graph' %}"
+          >
+            <svg width="16" height="16"><use href="#i-graph" /></svg>图谱
+          </a>
+          <a
             class="nav__link {% if request.resolver_match.url_name == 'flashcards' or request.resolver_match.url_name == 'review' %}is-active{% endif %}"
             href="{% url 'learning_logs:flashcards' %}"
           >
@@ -124,6 +130,12 @@
               <a href="{% url 'accounts:profile' %}">
                 <svg width="16" height="16"><use href="#i-user" /></svg>个人中心
               </a>
+              <a href="{% url 'learning_logs:today' %}">
+                <svg width="16" height="16"><use href="#i-clock" /></svg>今日速览
+              </a>
+              <a href="{% url 'learning_logs:focus' %}">
+                <svg width="16" height="16"><use href="#i-timer" /></svg>专注计时
+              </a>
               <a href="{% url 'learning_logs:goals' %}">
                 <svg width="16" height="16"><use href="#i-flag" /></svg>学习目标
               </a>
@@ -172,6 +184,8 @@
           <a href="{% url 'learning_logs:dashboard' %}">仪表盘</a>
           <a href="{% url 'learning_logs:learning_paths' %}">学习路径</a>
           <a href="{% url 'learning_logs:garden' %}">学习花园</a>
+          <a href="{% url 'learning_logs:graph' %}">知识图谱</a>
+          <a href="{% url 'learning_logs:today' %}">今日速览</a>
           <a href="{% url 'learning_logs:flashcards' %}">闪卡复习</a>
           <a href="{% url 'analytics:dashboard' %}">学习分析</a>
           <a href="{% url 'learning_logs:goals' %}">学习目标</a>

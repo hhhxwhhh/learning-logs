@@ -1,10 +1,12 @@
 import logging
+import random
 import secrets
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -30,15 +32,19 @@ from .models import (
     PathStep,
     StepResource,
     StudySession,
+    Tag,
+    TaggedItem,
     Topic,
     WeeklyReport,
 )
 from .services import achievements as achievements_service
 from .services import export as export_service
 from .services import garden as garden_service
+from .services import graph as graph_service
 from .services import report as report_service
 from .services import search as search_service
 from .services import stats
+from .services import tags as tags_service
 from .utils.markdown import render_markdown
 
 logger = logging.getLogger(__name__)
@@ -75,10 +81,20 @@ def topic(request, topic_id):
         except StudySession.DoesNotExist:
             pass
     
+    if request.method == "POST" and "tags" in request.POST:
+        tags_service.sync_tags(request.user, topic, request.POST.get("tags", ""))
+        messages.success(request, "标签已更新。")
+        return redirect("learning_logs:topic", topic_id=topic.id)
+
+    entries = list(entries)
+    for entry in entries:
+        entry.tag_list = tags_service.tags_of(entry)
+
     context = {
         'topic': topic, 
         'entries': entries,
         'active_session': active_session,
+        'topic_tags': tags_service.tags_of(topic),
     }
     return render(request, 'learning_logs/topic.html', context)
 
@@ -95,9 +111,10 @@ def new_entry(request, topic_id):
            new_entry = form.save(commit=False)
            new_entry.topic = topic
            new_entry.save()
+           tags_service.sync_tags(request.user, new_entry, request.POST.get("tags", ""))
            return redirect('learning_logs:topic', topic_id=topic_id)
    # 显示空表单或者指出表单的数据无效
-   context = {'topic': topic, 'form': form}
+   context = {'topic': topic, 'form': form, 'tags_input': request.POST.get('tags', '')}
    return render(request, 'learning_logs/new_entry.html', context)
 
 @login_required
@@ -113,9 +130,10 @@ def new_topic(request):
             new_topic = form.save(commit=False)
             new_topic.owner = request.user
             new_topic.save()
+            tags_service.sync_tags(request.user, new_topic, request.POST.get("tags", ""))
             return redirect('learning_logs:topics')  # 重定向到主题页面topics
     # 显示空表单或者指出表单数据无效
-    context = {'form': form}
+    context = {'form': form, 'tags_input': request.POST.get('tags', '')}
     return render(request, 'learning_logs/new_topic.html', context)
 
 @login_required
@@ -126,13 +144,16 @@ def edit_entry(request,entry_id):
     if request.method!='POST':
         #初次请求，使用当前条目填充表单
         form=EntryForm(instance=entry)
+        tags_input = tags_service.tags_input_of(entry)
     else:
         #POST提交的数据，对数据进行处理
         form=EntryForm(instance=entry,data=request.POST)
+        tags_input = request.POST.get('tags','')
         if form.is_valid():
             form.save()
+            tags_service.sync_tags(request.user, entry, tags_input)
             return redirect('learning_logs:topic',topic_id=topic.id)
-    context={'entry':entry,'topic':topic,'form':form}
+    context={'entry':entry,'topic':topic,'form':form,'tags_input':tags_input}
     return render(request,'learning_logs/edit_entry.html',context)
 
 @login_required
@@ -550,6 +571,10 @@ QUICK_ACTIONS = [
     {"label": "学习路径", "url": "/learning-paths/", "keywords": ["路径", "计划", "path", "plan"]},
     {"label": "学习分析", "url": "/analytics/", "keywords": ["分析", "图表", "analytics", "数据"]},
     {"label": "学习目标", "url": "/goals/", "keywords": ["目标", "goal", " deadline"]},
+    {"label": "今日速览", "url": "/today/", "keywords": ["今日", "today", "速览", "回顾"]},
+    {"label": "知识图谱", "url": "/graph/", "keywords": ["图谱", "graph", "关联", "网络"]},
+    {"label": "标签管理", "url": "/tags/", "keywords": ["标签", "tag", "分类"]},
+    {"label": "专注计时", "url": "/focus/", "keywords": ["专注", "番茄", "focus", "计时"]},
 ]
 
 
@@ -748,3 +773,134 @@ def shared_topic(request, token):
         "entry_count": topic.total_items,
     }
     return render(request, "learning_logs/shared.html", context)
+
+
+@login_required
+def tags(request):
+    """标签总览：标签云 + 最近打过标签的对象。"""
+    return render(
+        request,
+        "learning_logs/tags.html",
+        {
+            "cloud": tags_service.cloud(request.user),
+            "tag_count": Tag.objects.filter(user=request.user).count(),
+            "tagged_topics": TaggedItem.objects.filter(
+                tag__user=request.user,
+                content_type=ContentType.objects.get_for_model(Topic),
+            ).count(),
+            "tagged_entries": TaggedItem.objects.filter(
+                tag__user=request.user,
+                content_type=ContentType.objects.get_for_model(Entry),
+            ).count(),
+        },
+    )
+
+
+@login_required
+def tag_detail(request, tag_id):
+    """单个标签下的主题与笔记。"""
+    data = tags_service.objects_of(request.user, tag_id)
+    if data["tag"] is None:
+        raise Http404("标签不存在")
+    return render(request, "learning_logs/tag_detail.html", data)
+
+
+@login_required
+def graph(request):
+    """知识图谱：主题之间的关联网络。"""
+    return render(request, "learning_logs/graph.html", graph_service.build(request.user))
+
+
+@login_required
+def today(request):
+    """今日速览：把今天该做的事和值得回看的旧笔记聚到一页。"""
+    user = request.user
+    today_date = timezone.localdate()
+    start = timezone.make_aware(datetime.combine(today_date, time.min))
+
+    entries_today = Entry.objects.filter(topic__owner=user, date_added__gte=start)
+    sessions_today = StudySession.objects.filter(
+        user=user, start_time__gte=start, duration__isnull=False
+    )
+    minutes_today = sum(
+        session.duration_minutes() for session in sessions_today
+    )
+    due_cards = Flashcard.objects.filter(user=user, due_date__lte=today_date)
+
+    old_entries = list(
+        Entry.objects.filter(topic__owner=user, date_added__lt=start - timedelta(days=30))
+        .select_related("topic")
+        .order_by("-date_added")[:60]
+    )
+    random.shuffle(old_entries)
+
+    context = {
+        "today": today_date,
+        "entry_count_today": entries_today.count(),
+        "minutes_today": minutes_today,
+        "minutes_text": stats.format_minutes(minutes_today),
+        "streak": stats.current_streak(user),
+        "due_cards": due_cards[:5],
+        "due_count": due_cards.count(),
+        "flashbacks": old_entries[:3],
+        "recent_topics": Topic.objects.filter(owner=user).order_by("-date_added")[:5],
+        "goals": stats.upcoming_goals(user, limit=3),
+        "week_minutes": stats.range_minutes(user, 7),
+    }
+    return render(request, "learning_logs/today.html", context)
+
+
+@login_required
+def focus(request):
+    """专注计时（番茄钟）页面。"""
+    sessions = StudySession.objects.filter(
+        user=request.user, duration__isnull=False
+    ).select_related("topic")[:8]
+    today_date = timezone.localdate()
+    start = timezone.make_aware(datetime.combine(today_date, time.min))
+    return render(
+        request,
+        "learning_logs/focus.html",
+        {
+            "topics": Topic.objects.filter(owner=request.user),
+            "sessions": sessions,
+            "minutes_today": sum(
+                s.duration_minutes()
+                for s in StudySession.objects.filter(
+                    user=request.user, start_time__gte=start, duration__isnull=False
+                )
+            ),
+            "today": today_date,
+        },
+    )
+
+
+@login_required
+@require_POST
+def focus_log(request):
+    """专注结束后写入一次学习会话。"""
+    minutes = request.POST.get("minutes") or "0"
+    try:
+        minutes = max(0, min(600, int(float(minutes))))
+    except (TypeError, ValueError):
+        minutes = 0
+    topic_id = request.POST.get("topic")
+    topic = Topic.objects.filter(id=topic_id, owner=request.user).first()
+
+    if minutes <= 0:
+        return JsonResponse({"ok": False, "error": "时长太短，未记录。"}, status=400)
+    if topic is None:
+        return JsonResponse({"ok": False, "error": "请先选择一个主题。"}, status=400)
+
+    end = timezone.now()
+    StudySession.objects.create(
+        user=request.user, topic=topic, start_time=end - timedelta(minutes=minutes), end_time=end
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "minutes": minutes,
+            "topic": topic.text,
+            "message": f"已记录 {minutes} 分钟专注：{topic.text}",
+        }
+    )

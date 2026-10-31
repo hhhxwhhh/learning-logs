@@ -1,0 +1,68 @@
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
+
+{% block title %}#{{ tag.name }} · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Tag</div>
+    <h1>#{{ tag.name }}</h1>
+    <p>共 {{ tag.usage_count }} 处使用，横跨 {{ topics|length }} 个主题、{{ entries|length }} 条笔记。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:tags' %}">
+      <svg width="16" height="16"><use href="#i-tag" /></svg>全部标签
+    </a>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card__head">
+    <h3>相关主题</h3>
+    <span class="tiny muted">{{ topics|length }} 个</span>
+  </div>
+  <div class="card__body">
+    {% if topics %}
+    <div class="grid">
+      {% for item in topics %}
+      <a class="tile" href="{% url 'learning_logs:topic' item.id %}">
+        <span class="tile__title">{{ item.text }}</span>
+        <span class="tiny muted">{{ item.total_items }} 条记录 · 完成 {{ item.progress_percentage }}%</span>
+        <span class="progress mt-2"><span class="progress__bar" style="width: {{ item.progress_percentage }}%"></span></span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted small">这个标签还没有挂在主题上。</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mt-3">
+  <div class="card__head">
+    <h3>相关笔记</h3>
+    <span class="tiny muted">{{ entries|length }} 条</span>
+  </div>
+  <div class="card__body">
+    {% if entries %}
+    <div class="list">
+      {% for entry in entries %}
+      <a class="list__item list__item--link" href="{% url 'learning_logs:entry_comments' entry.id %}">
+        <div class="list__main">
+          <span class="list__title">{{ entry.text|md_plain|truncatechars:60 }}</span>
+          <span class="list__meta">
+            <span>{{ entry.topic.text }}</span>
+            <span>{{ entry.date_added|date:"Y-m-d H:i" }}</span>
+          </span>
+        </div>
+        <svg width="16" height="16" class="muted"><use href="#i-arrow-right" /></svg>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted small">这个标签还没有挂在笔记上。</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

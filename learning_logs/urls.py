@@ -55,6 +55,15 @@ urlpatterns = [
     path("data/import/", views.import_notes, name="import_notes"),
     # 学习花园
     path("garden/", views.garden, name="garden"),
+    # 标签体系
+    path("tags/", views.tags, name="tags"),
+    path("tags/<int:tag_id>/", views.tag_detail, name="tag_detail"),
+    # 知识图谱
+    path("graph/", views.graph, name="graph"),
+    # 今日速览与专注计时
+    path("today/", views.today, name="today"),
+    path("focus/", views.focus, name="focus"),
+    path("focus/log/", views.focus_log, name="focus_log"),
     # 闪卡复习
     path("flashcards/", views.flashcards, name="flashcards"),
     path("flashcards/review/", views.review, name="review"),

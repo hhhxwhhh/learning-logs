@@ -26,6 +26,19 @@
       <div class="card__body stack">
         {% include "partials/field.html" with field=form.text %}
 
+        <label class="field">
+        <span class="field__label">标签（可选，用逗号分隔）</span>
+        <input
+          class="input"
+          type="text"
+          name="tags"
+          value="{{ tags_input|default:'' }}"
+          placeholder="例如：算法, 面试, 待深入"
+          autocomplete="off"
+        />
+        <span class="tiny muted">相同标签的主题与笔记会在知识图谱里连在一起。</span>
+      </label>
+
         <label class="row small" style="cursor: pointer">
           {{ form.completed }}
           <span>这条记录已经掌握（标记完成）</span>

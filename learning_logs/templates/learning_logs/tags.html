@@ -1,0 +1,61 @@
+{% extends "learning_logs/base.html" %}
+
+{% block title %}标签 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Tags</div>
+    <h1>标签</h1>
+    <p>标签是知识的横向索引：跨主题的同一种思考，会被同一个标签串起来。</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost" href="{% url 'learning_logs:graph' %}">知识图谱</a>
+    <a class="btn" href="{% url 'learning_logs:new_topic' %}">
+      <svg width="16" height="16"><use href="#i-plus" /></svg>新建主题
+    </a>
+  </div>
+</div>
+
+<div class="grid metrics mb-3">
+  <div class="metric">
+    <span class="metric__label">标签总数</span>
+    <span class="metric__value">{{ tag_count }}</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">已标记主题</span>
+    <span class="metric__value">{{ tagged_topics }}</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">已标记笔记</span>
+    <span class="metric__value">{{ tagged_entries }}</span>
+  </div>
+</div>
+
+<section class="card mt-3">
+  <div class="card__head">
+    <h3>标签云</h3>
+    <span class="tiny muted">字号越大，用得越多</span>
+  </div>
+  <div class="card__body">
+    {% if cloud %}
+    <div class="tag-cloud">
+      {% for tag in cloud %}
+      <a
+        class="tag-cloud__item"
+        href="{{ tag.url }}"
+        style="--tag-hue: {{ tag.hue }}; font-size: {{ tag.weight }}rem"
+      >
+        {{ tag.name }}<span class="tag-cloud__count">{{ tag.count }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="center">
+      <p class="muted">还没有标签。在新建主题或写笔记时，用逗号分隔填入几个关键词即可。</p>
+      <a class="btn btn--primary mt-2" href="{% url 'learning_logs:new_topic' %}">去打第一个标签</a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

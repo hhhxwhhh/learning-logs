@@ -9,6 +9,8 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 
@@ -358,3 +360,49 @@ class Flashcard(models.Model):
 
     def is_due(self):
         return self.due_date <= timezone.localdate()
+
+
+class Tag(models.Model):
+    """用户自定义标签，可同时挂在主题与笔记上。"""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tags")
+    name = models.CharField("标签", max_length=32)
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "标签"
+        verbose_name_plural = "标签"
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "name"], name="uniq_tag_name_per_user")
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def usage_count(self):
+        return self.items.count()
+
+    @property
+    def hue(self):
+        """由标签名派生的稳定色相，保证同名标签颜色始终一致。"""
+        return sum(ord(char) * (index + 3) for index, char in enumerate(self.name)) % 360
+
+
+class TaggedItem(models.Model):
+    """标签与被标记对象（主题或笔记）之间的关联。"""
+
+    tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name="items")
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey("content_type", "object_id")
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "标签关联"
+        verbose_name_plural = "标签关联"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["content_type", "object_id"])]
+
+    def __str__(self):
+        return f"{self.tag} → {self.content_type}#{self.object_id}"

@@ -23,6 +23,38 @@
       </span>
       {% endif %}
     </div>
+    <div class="cluster mt-2">
+      {% for tag in topic_tags %}
+      <a
+        class="chip"
+        href="{% url 'learning_logs:tag_detail' tag.id %}"
+        style="color: hsl({{ tag.hue }} 62% 34%); background: hsl({{ tag.hue }} 78% 96%); border-color: hsl({{ tag.hue }} 70% 88%)"
+      >
+        <svg width="12" height="12"><use href="#i-tag" /></svg>{{ tag.name }}
+      </a>
+      {% endfor %}
+      <details class="dropmenu">
+        <summary class="chip" style="cursor: pointer">
+          <svg width="12" height="12"><use href="#i-plus" /></svg>标签
+        </summary>
+        <div class="dropmenu__panel" style="padding: 0.75rem; width: 240px">
+          <form method="post" class="stack-sm">
+            {% csrf_token %}
+            <label class="field">
+              <span class="field__label">用逗号分隔</span>
+              <input
+                class="input"
+                type="text"
+                name="tags"
+                value="{% for tag in topic_tags %}{{ tag.name }}{% if not forloop.last %}, {% endif %}{% endfor %}"
+                placeholder="算法, 面试"
+              />
+            </label>
+            <button class="btn btn--primary btn--sm" type="submit">保存标签</button>
+          </form>
+        </div>
+      </details>
+    </div>
   </div>
 
   <div class="cluster">
@@ -78,6 +110,11 @@
             {% if entry.completed %}已完成{% else %}进行中{% endif %}
           </span>
           <span class="muted">{{ entry.date_added|date:"Y-m-d H:i" }}</span>
+          {% for tag in entry.tag_list %}
+          <a class="chip" href="{% url 'learning_logs:tag_detail' tag.id %}">
+            <svg width="11" height="11"><use href="#i-tag" /></svg>{{ tag.name }}
+          </a>
+          {% endfor %}
         </div>
         <div class="cluster">
           <a

@@ -2305,6 +2305,264 @@
   }
 }
 
+  /* 标签 ---------------------------------------------------------------- */
+  .chip,
+  .chip-row {
+    display: flex;
+  }
+
+  .chip-row {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .chip {
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 550;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem 0.7rem;
+    padding: 0.4rem 0;
+  }
+
+  .tag-cloud__item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-weight: 600;
+    line-height: 1.6;
+    color: hsl(var(--tag-hue, 250) 62% 34%);
+    background: hsl(var(--tag-hue, 250) 78% 96%);
+    border: 1px solid hsl(var(--tag-hue, 250) 70% 88%);
+    transition: transform var(--transition), box-shadow var(--transition);
+  }
+
+  .tag-cloud__item:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .tag-cloud__count {
+    font-size: 0.68rem;
+    font-weight: 700;
+    opacity: 0.6;
+  }
+
+  [data-theme="dark"] .tag-cloud__item {
+    color: hsl(var(--tag-hue, 250) 90% 78%);
+    background: hsl(var(--tag-hue, 250) 45% 16%);
+    border-color: hsl(var(--tag-hue, 250) 40% 28%);
+  }
+
+  /* 主题卡片 ------------------------------------------------------------ */
+  .tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: calc(var(--radius) - 4px);
+    background: var(--surface-2);
+    transition: border-color var(--transition), transform var(--transition);
+  }
+
+  .tile:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .tile__title {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* 知识图谱 ------------------------------------------------------------ */
+  .graph-card {
+    overflow: hidden;
+  }
+
+  .graph {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .graph__edges line {
+    stroke: var(--accent);
+    stroke-linecap: round;
+  }
+
+  .graph__halo {
+    fill: color-mix(in oklab, var(--accent) 16%, transparent);
+    transition: fill var(--transition);
+  }
+
+  .graph__dot {
+    fill: var(--surface);
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+
+  .graph__node {
+    cursor: pointer;
+  }
+
+  .graph__node text {
+    fill: var(--ink);
+    font-size: 11px;
+    font-weight: 600;
+    pointer-events: none;
+  }
+
+  .graph__node:hover .graph__halo {
+    fill: color-mix(in oklab, var(--accent) 34%, transparent);
+  }
+
+  .graph__node:hover .graph__dot {
+    stroke-width: 3;
+  }
+
+  /* 今日待办 ------------------------------------------------------------ */
+  .todo-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .todo-item {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .todo-item:last-child {
+    border-bottom: 0;
+  }
+
+  .todo-item__dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--line-strong);
+    flex: none;
+  }
+
+  .todo-item__dot.is-active {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 18%, transparent);
+  }
+
+  .todo-item__main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .todo-item__title {
+    font-weight: 550;
+  }
+
+  /* 快捷入口 ------------------------------------------------------------ */
+  .quick-grid {
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
+  }
+
+  .quick-tile {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: calc(var(--radius) - 4px);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    font-size: 0.86rem;
+    font-weight: 550;
+    transition: border-color var(--transition), transform var(--transition);
+  }
+
+  .quick-tile:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    color: var(--accent);
+  }
+
+  /* 专注计时 ------------------------------------------------------------ */
+  .focus-card .card__body {
+    padding: 2rem 1.5rem;
+  }
+
+  .focus-dial {
+    position: relative;
+    width: min(260px, 78vw);
+    margin: 0 auto 1.4rem;
+  }
+
+  .focus-dial__svg {
+    width: 100%;
+    height: auto;
+    transform: rotate(-90deg);
+  }
+
+  .focus-dial__track {
+    fill: none;
+    stroke: color-mix(in oklab, var(--ink) 8%, transparent);
+    stroke-width: 10;
+  }
+
+  .focus-dial__progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 900ms linear;
+  }
+
+  .focus-dial__inner {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    text-align: center;
+  }
+
+  .focus-dial__time {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .focus-form {
+    display: grid;
+    gap: 0.85rem;
+    max-width: 340px;
+    margin: 0 auto;
+  }
+
+  .focus-form .cluster {
+    justify-content: center;
+  }
+
+  body.is-focusing .focus-dial__progress {
+    stroke: var(--teal);
+  }
+
 /* --------------------------------------------------------------------------
    工具类
    -------------------------------------------------------------------------- */

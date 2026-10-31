@@ -1,0 +1,124 @@
+{% extends "learning_logs/base.html" %}
+{% load static ll_extras %}
+
+{% block title %}专注计时 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Focus</div>
+    <h1>专注计时</h1>
+    <p>一个番茄钟：25 分钟专注，5 分钟休息。结束时把这段时间记到对应主题下。</p>
+  </div>
+  <div class="cluster">
+    <span class="badge badge--accent">今日已专注 {{ minutes_today|dur }}</span>
+  </div>
+</div>
+
+<div class="split">
+  <section class="card focus-card">
+    <div class="card__body center">
+      <div class="focus-dial" data-focus-dial>
+        <svg viewBox="0 0 220 220" class="focus-dial__svg">
+          <circle class="focus-dial__track" cx="110" cy="110" r="96" />
+          <circle
+            class="focus-dial__progress"
+            cx="110"
+            cy="110"
+            r="96"
+            data-focus-ring
+            stroke-dasharray="603.2"
+            stroke-dashoffset="0"
+          />
+        </svg>
+        <div class="focus-dial__inner">
+          <div class="focus-dial__time" data-focus-time>25:00</div>
+          <div class="tiny muted" data-focus-mode>专注</div>
+        </div>
+      </div>
+
+      <form class="focus-form" method="post" action="{% url 'learning_logs:focus_log' %}" data-focus-form>
+        {% csrf_token %}
+        <input type="hidden" name="minutes" data-focus-minutes value="25" />
+        <label class="field">
+          <span class="field__label">记到哪个主题</span>
+          <select name="topic" class="input" data-focus-topic required>
+            {% for topic in topics %}
+            <option value="{{ topic.id }}">{{ topic.text }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="cluster center">
+          <button type="button" class="btn btn--primary" data-focus-start>
+            <svg width="16" height="16"><use href="#i-timer" /></svg>开始专注
+          </button>
+          <button type="button" class="btn btn--ghost" data-focus-reset disabled>重置</button>
+        </div>
+      </form>
+
+      <p class="tiny muted mt-2" data-focus-hint>
+        计时结束后点击「记录本次专注」，时间会写入学习会话并进入统计。
+      </p>
+      <button type="button" class="btn btn--sm mt-2 hidden" data-focus-save>
+        <svg width="14" height="14"><use href="#i-check" /></svg>记录本次专注
+      </button>
+    </div>
+  </section>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card__head">
+        <h3>最近的专注</h3>
+        <span class="tiny muted">来自学习会话记录</span>
+      </div>
+      <div class="card__body">
+        {% if sessions %}
+        <div class="list">
+          {% for session in sessions %}
+          <a class="list__item list__item--link" href="{% url 'learning_logs:topic' session.topic.id %}">
+            <div class="list__main">
+              <span class="list__title">{{ session.topic.text }}</span>
+              <span class="list__meta">{{ session.start_time|date:"m-d H:i" }}</span>
+            </div>
+            <span class="badge badge--outline">{{ session.duration|minutes }} 分钟</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted small">还没有专注记录，开始第一个番茄钟吧。</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head"><h3>为什么记时间</h3></div>
+      <div class="card__body">
+        <div class="list">
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">进入热力图与周报</span>
+              <span class="list__meta">专注时长会汇入仪表盘与周报统计</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">维持连续天数</span>
+              <span class="list__meta">有专注记录的当天同样算作学习日</span>
+            </div>
+          </div>
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">归属到具体主题</span>
+              <span class="list__meta">方便回看每个方向的投入分布</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/focus.js' %}?v=1" defer></script>
+{% endblock %}
