@@ -220,6 +220,22 @@ Agent 工具调用、导入去重、洞察规则、待办回写等。AI 调用�
 | `/settings/api/` `/api/docs/` | API 令牌管理、接口文档 |
 | `/features/` | 功能地图 |
 
+## 运维
+
+```bash
+python manage.py check_services          # 逐项检查依赖状态
+python manage.py check_services --json   # 机器可读
+curl -s localhost:8000/healthz/          # 存活探针：只看数据库
+curl -s localhost:8000/readyz/           # 就绪探针：全部依赖
+```
+
+`/healthz/` 只探数据库，用于容器 liveness；`/readyz/` 探数据库、缓存、Celery broker、
+Kafka 与通道层，缺可选依赖时状态为 `degraded`，缺必需依赖才是 `down`。
+探针结果缓存 10 秒，避免监控高频拉取时反复建连。
+
+请求日志默认输出文本行，`DJANGO_LOG_FORMAT=json` 时改为 JSON，
+每条带 `request_id`，响应头也回写 `X-Request-Id`。
+
 ## 部署
 
 ```bash

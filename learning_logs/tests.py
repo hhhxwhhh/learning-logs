@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -257,7 +258,7 @@ class AIStreamTests(BaseTestCase):
     def test_assistant_page_renders(self):
         response = self.client.get(reverse("learning_logs:ai_assistant", args=[self.topic.id]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "AI 助教")
+        self.assertContains(response, "模型助教")
 
 
 class AIPathGenerationTests(BaseTestCase):
@@ -1770,6 +1771,26 @@ class LiveBoardTests(BaseTestCase):
         after = self.client.get(reverse("learning_logs:live_board"))
         self.assertEqual(after.context["initial"]["metrics"]["entries"], count + 1)
 
+    def test_live_page_includes_weekly_series(self):
+        before = self.client.get(reverse("learning_logs:live_board"))
+        series = before.context["initial"]["series"]
+        self.assertEqual(len(series), 7)
+
+        Entry.objects.create(topic=self.topic, text="趋势图用的一条")
+        after = self.client.get(reverse("learning_logs:live_board"))
+        new_series = after.context["initial"]["series"]
+        self.assertEqual(
+            sum(item["count"] for item in new_series),
+            sum(item["count"] for item in series) + 1,
+        )
+
+    def test_live_page_series_counts_only_own_entries(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        Entry.objects.create(topic=bob_topic, text="别人的笔记")
+        response = self.client.get(reverse("learning_logs:live_board"))
+        series = response.context["initial"]["series"]
+        self.assertEqual(sum(item["count"] for item in series), 1)
+
     def test_websocket_rejects_anonymous(self):
         from asgiref.sync import async_to_sync
         from channels.testing import WebsocketCommunicator
@@ -2042,3 +2063,55 @@ class AgentTests(BaseTestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "这是回答。")
+
+
+class HealthTests(BaseTestCase):
+    """探活与就绪接口。"""
+
+    def test_healthz_reports_database(self):
+        response = self.client.get("/healthz/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["database"], "up")
+
+    def test_readyz_lists_checks(self):
+        cache.delete("zhiji:readyz")
+        response = self.client.get("/readyz/")
+        self.assertIn(response.status_code, (200, 503))
+        payload = response.json()
+        self.assertIn("status", payload)
+        self.assertIn("database", payload["checks"])
+        self.assertIn("cache", payload["checks"])
+
+    def test_readyz_reports_optional_dependency_failure_as_degraded(self):
+        from ll_project import health
+
+        broken = lambda: ("down", "boom", 1.0)
+        with patch.dict(health.PROBES, {"kafka": broken}):
+            report = health.collect(use_cache=False)
+        self.assertEqual(report["status"], "degraded")
+        self.assertEqual(report["checks"]["kafka"]["status"], "down")
+
+    def test_readyz_marks_required_dependency_failure_as_down(self):
+        from ll_project import health
+
+        broken = lambda: ("down", "boom", 1.0)
+        with patch.dict(health.PROBES, {"database": broken}):
+            report = health.collect(use_cache=False)
+        self.assertEqual(report["status"], "down")
+
+
+class RequestLogTests(BaseTestCase):
+    """请求日志中间件。"""
+
+    def test_request_id_is_added_to_response(self):
+        response = self.client.get("/healthz/")
+        self.assertTrue(response.headers.get("X-Request-Id"))
+
+    def test_existing_request_id_is_reused(self):
+        response = self.client.get("/healthz/", headers={"X-Request-Id": "abc123"})
+        self.assertEqual(response.headers.get("X-Request-Id"), "abc123")
+
+    def test_static_paths_are_skipped(self):
+        with self.assertLogs("zhiji.request", level="INFO") as logs:
+            self.client.get("/healthz/")
+        self.assertTrue(any("/healthz/" in line for line in logs.output))

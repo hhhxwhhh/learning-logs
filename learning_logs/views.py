@@ -1640,6 +1640,24 @@ def live_board(request):
     open_todos = todos_service.summarize(todos_service.scan(request.user))["open"]
 
     recent = EventLog.objects.filter(user=request.user).select_related("topic")[:20]
+
+    # 近 7 天每日笔记数，用于看板上的迷你趋势图
+    week_start = today - timedelta(days=6)
+    day_counts = (
+        Entry.objects.filter(
+            topic__owner=request.user, date_added__gte=week_start
+        )
+        .values("date_added__date")
+        .annotate(total=Count("id"))
+        .order_by("date_added__date")
+    )
+    by_day = {row["date_added__date"]: row["total"] for row in day_counts}
+    series = [
+        {"date": (week_start + timedelta(days=offset)).isoformat(),
+         "count": by_day.get(week_start + timedelta(days=offset), 0)}
+        for offset in range(7)
+    ]
+
     initial = {
         "metrics": {
             "entries": entries_today,
@@ -1647,6 +1665,7 @@ def live_board(request):
             "cards": due_cards,
             "todos": open_todos,
         },
+        "series": series,
         "events": [
             {
                 "event_id": item.event_id,

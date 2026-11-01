@@ -67,6 +67,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "ll_project.middleware.RequestLogMiddleware",
 ]
 
 # 生产环境优先用 WhiteNoise 直接托管静态文件（未安装时自动跳过，不影响开发）
@@ -98,13 +99,31 @@ ASGI_APPLICATION = "ll_project.asgi.application"
 # ---------------------------------------------------------------------------
 # 数据库
 # ---------------------------------------------------------------------------
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.getenv("DJANGO_DB_PATH", str(BASE_DIR / "db.sqlite3")),
-        "OPTIONS": {"timeout": 20},
+# 数据库后端：默认 SQLite；设置 DJANGO_DB_ENGINE=postgres 即切到 PostgreSQL。
+# 两种后端的差异都收在配置里，业务代码不感知。
+_DB_ENGINE = os.getenv("DJANGO_DB_ENGINE", "sqlite").strip().lower()
+
+if _DB_ENGINE in ("postgres", "postgresql", "psql"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB", "zhiji"),
+            "USER": os.getenv("POSTGRES_USER", "zhiji"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
+            "HOST": os.getenv("POSTGRES_HOST", "127.0.0.1"),
+            "PORT": os.getenv("POSTGRES_PORT", "5432"),
+            "CONN_MAX_AGE": int(os.getenv("POSTGRES_CONN_MAX_AGE", "60")),
+            "OPTIONS": {"connect_timeout": int(os.getenv("POSTGRES_CONNECT_TIMEOUT", "5"))},
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.getenv("DJANGO_DB_PATH", str(BASE_DIR / "db.sqlite3")),
+            "OPTIONS": {"timeout": 20},
+        }
+    }
 
 # ---------------------------------------------------------------------------
 # 密码校验
@@ -179,20 +198,39 @@ if not DEBUG:
 # ---------------------------------------------------------------------------
 # 日志
 # ---------------------------------------------------------------------------
+_LOG_FORMAT = os.getenv("DJANGO_LOG_FORMAT", "text")
+if _LOG_FORMAT == "json":
+    _request_formatter = {
+        "format": "%(message)s",
+        "style": "{",
+    }
+else:
+    _request_formatter = {
+        "format": "[{asctime}] {levelname} {name}: {message}",
+        "style": "{",
+    }
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
         "simple": {"format": "[{asctime}] {levelname} {name}: {message}", "style": "{"},
+        "request": _request_formatter,
     },
     "handlers": {
         "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+        "request_console": {"class": "logging.StreamHandler", "formatter": "request"},
     },
     "root": {"handlers": ["console"], "level": "INFO"},
     "loggers": {
         "learning_logs": {
             "handlers": ["console"],
             "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "propagate": False,
+        },
+        "zhiji.request": {
+            "handlers": ["request_console"],
+            "level": os.getenv("DJANGO_REQUEST_LOG_LEVEL", "INFO"),
             "propagate": False,
         },
         "django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
