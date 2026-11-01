@@ -2348,3 +2348,89 @@ class ApiSchemaTests(BaseTestCase):
         response = self.client.get("/api/v2/schema/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["openapi"], "3.0.3")
+
+
+class EventPipelineTests(BaseTestCase):
+    """事件链路端到端：发布 → 投递 → 消费 → 落库 → 幂等。
+
+    有 Redis 时走真实的 Stream，没有 Redis 时用假客户端验证调用路径。
+    """
+
+    def test_publish_delivers_and_consumes_back(self):
+        from learning_logs.messaging import consumer
+
+        delivered = {}
+
+        def fake_publish(event):
+            delivered.update(event)
+            return True
+
+        with patch("learning_logs.messaging.stream.publish_stream", side_effect=fake_publish):
+            events.publish("entry_created", self.alice, "链路测试")
+
+        self.assertIn("event_id", delivered)
+        self.assertEqual(delivered["user_id"], self.alice.id)
+
+        # 发布时已经同步写库，消费时按 event_id 去重，不会写出第二条
+        with patch("learning_logs.messaging.stream.read_stream", return_value=[delivered]):
+            created = consumer.consume(source="redis")
+            again = consumer.consume(source="redis")
+        self.assertEqual(created, 0)
+        self.assertEqual(again, 0)
+        self.assertEqual(EventLog.objects.filter(user=self.alice).count(), 1)
+
+    def test_consume_auto_prefers_kafka_when_enabled(self):
+        from learning_logs.messaging import consumer
+
+        with override_settings(KAFKA_ENABLED=True, KAFKA_BOOTSTRAP_SERVERS=["127.0.0.1:9092"]):
+            with patch.object(consumer, "consume_from_kafka", return_value=7) as kafka:
+                with patch.object(consumer, "consume_from_stream", return_value=0):
+                    result = consumer.consume(source="auto")
+        self.assertEqual(result, 7)
+        kafka.assert_called_once()
+
+    def test_consume_auto_uses_stream_without_kafka(self):
+        from learning_logs.messaging import consumer
+
+        with override_settings(KAFKA_ENABLED=False, KAFKA_BOOTSTRAP_SERVERS=[]):
+            with patch.object(consumer, "consume_from_kafka", return_value=0):
+                with patch.object(consumer, "consume_from_stream", return_value=3) as stream:
+                    result = consumer.consume(source="auto")
+        self.assertEqual(result, 3)
+        stream.assert_called_once()
+
+    def test_stream_publish_and_read_roundtrip(self):
+        from learning_logs.messaging import stream
+
+        client = stream.get_client()
+        if client is None:
+            self.skipTest("未配置 Redis，跳过真实 Stream 测试")
+
+        client.delete(stream.STREAM_KEY)
+        payload = {"event_id": "stream-test", "kind": "entry_created", "user_id": self.alice.id}
+        self.assertTrue(stream.publish_stream(payload))
+
+        events_found = stream.read_stream(limit=10)
+        self.assertTrue(any(item.get("event_id") == "stream-test" for item in events_found))
+        client.delete(stream.STREAM_KEY)
+
+    def test_external_event_is_stored_by_consumer(self):
+        from learning_logs.messaging import consumer
+
+        external = {
+            "event_id": "external-1",
+            "kind": "entry_created",
+            "summary": "外部系统写入",
+            "payload": {},
+            "user_id": self.alice.id,
+            "topic_id": None,
+        }
+        with patch("learning_logs.messaging.stream.read_stream", return_value=[external]):
+            created = consumer.consume(source="redis")
+        self.assertEqual(created, 1)
+        self.assertTrue(EventLog.objects.filter(event_id="external-1").exists())
+
+    def test_publish_records_event_once(self):
+        events.publish("topic_created", self.alice, "一次发布")
+        events.publish("topic_created", self.alice, "另一次发布")
+        self.assertEqual(EventLog.objects.filter(user=self.alice).count(), 2)
