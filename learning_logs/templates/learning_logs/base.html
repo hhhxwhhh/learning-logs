@@ -7,7 +7,7 @@
     <title>{% block title %}知迹 · 让学习留下痕迹{% endblock %}</title>
     <meta
       name="description"
-      content="知迹 Learning Log：用笔记、学习路径与 AI 助手，把每天的学习沉淀成可检索的第二大脑。"
+      content="知迹 Learning Log：记录学习笔记、学习路径与时间投入，支持间隔复习。"
     />
     <meta name="theme-color" content="#f6f6f3" />
     <script>
@@ -197,6 +197,9 @@
               </a>
               <a href="{% url 'learning_logs:activity' %}">
                 <svg width="16" height="16"><use href="#i-layers" /></svg>活动流
+              </a>
+              <a href="{% url 'learning_logs:agent' %}">
+                <svg width="16" height="16"><use href="#i-spark" /></svg>学习助手
               </a>
               <a href="{% url 'learning_logs:features' %}">
                 <svg width="16" height="16"><use href="#i-book" /></svg>功能地图

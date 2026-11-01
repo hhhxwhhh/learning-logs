@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .ai.providers import AIError
+from .ai.providers import AIError, available_models, resolve_model
 from .ai.service import generate_flashcards, suggest_tags as suggest_tags_service
 from .forms import (
     CommentForm,
@@ -44,6 +44,8 @@ from .models import (
     WeeklyReport,
 )
 from . import events
+from .agent import runtime as agent_runtime
+from .agent import tools as agent_tools
 from .services import achievements as achievements_service
 from .services import cache as cache_service
 from .services import export as export_service
@@ -634,6 +636,57 @@ def generate_cards(request, topic_id):
     return redirect("learning_logs:flashcards")
 
 
+API_ENDPOINTS_V2 = [
+    {
+        "method": "GET",
+        "path": "/api/v2/topics/",
+        "desc": "主题列表，分页 + 搜索 + 排序",
+        "params": "search=&ordering=-date_added&page=1",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v2/entries/",
+        "desc": "笔记列表，支持主题与关键词过滤",
+        "params": "topic=主题ID&q=关键词&page=1",
+    },
+    {
+        "method": "POST",
+        "path": "/api/v2/entries/",
+        "desc": "新建笔记，需要 topic 或 topic_name",
+        "params": "JSON: {text, topic}",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v2/cards/",
+        "desc": "闪卡列表，due=1 只看到期",
+        "params": "due=1",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v2/sessions/",
+        "desc": "学习会话列表",
+        "params": "page=1",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v2/events/",
+        "desc": "学习事件流",
+        "params": "ordering=-created_at",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v2/stats/",
+        "desc": "统计概览与主题排行",
+        "params": "无",
+    },
+    {
+        "method": "GET",
+        "path": "/api/v2/schema/",
+        "desc": "OpenAPI 3 文档",
+        "params": "无",
+    },
+]
+
 API_ENDPOINTS = [
     {
         "method": "GET",
@@ -683,7 +736,7 @@ API_ENDPOINTS = [
 FEATURE_GROUPS = [
     {
         "title": "记录与组织",
-        "desc": "把每天学到的东西放进来，并让它们彼此产生联系",
+        "desc": "笔记与主题的组织方式",
         "items": [
             {"name": "主题", "url": "/topics/", "icon": "i-layers", "key": "t",
              "desc": "按主题拆分知识，一个主题一棵树"},
@@ -694,19 +747,19 @@ FEATURE_GROUPS = [
             {"name": "版本历史", "url": "/features/", "icon": "i-clock", "key": "",
              "desc": "每次修改自动留痕，编辑页可预览与回滚旧版本"},
             {"name": "公开主页", "url": "/features/", "icon": "i-user", "key": "",
-             "desc": "把开启分享的主题聚合到一个只读主页"},
+             "desc": "把已分享的主题聚合成只读主页"},
             {"name": "学习路径", "url": "/learning-paths/", "icon": "i-route", "key": "p",
-             "desc": "把多个主题串成一条有顺序的路线"},
+             "desc": "把多个主题串成有顺序的路线"},
             {"name": "标签", "url": "/tags/", "icon": "i-tag", "key": "",
-             "desc": "横向索引，跨主题复用同一套关键词（主题页可用 AI 建议标签）"},
+             "desc": "横向索引，跨主题复用同一套关键词"},
         ],
     },
     {
         "title": "复习与记忆",
-        "desc": "用间隔重复把短期记忆变成长期记忆",
+        "desc": "间隔重复复习",
         "items": [
             {"name": "闪卡", "url": "/flashcards/", "icon": "i-cards", "key": "c",
-             "desc": "管理所有卡片，支持 AI 批量生成"},
+             "desc": "管理所有卡片，支持批量生成"},
             {"name": "今日复习", "url": "/flashcards/review/", "icon": "i-brain", "key": "r",
              "desc": "SM-2 算法挑出今天该复习的卡"},
             {"name": "复习统计", "url": "/flashcards/stats/", "icon": "i-chart", "key": "",
@@ -716,12 +769,12 @@ FEATURE_GROUPS = [
             {"name": "专注计时", "url": "/focus/", "icon": "i-timer", "key": "f",
              "desc": "番茄钟，结束即计入学习时长"},
             {"name": "AI 助教", "url": "/topics/", "icon": "i-spark", "key": "",
-             "desc": "在主题页里与 AI 多轮对话"},
+             "desc": "在主题页里与模型多轮对话"},
         ],
     },
     {
         "title": "洞察与回顾",
-        "desc": "看见自己的学习曲线，而不只是记流水账",
+        "desc": "统计与可视化",
         "items": [
             {"name": "今日速览", "url": "/today/", "icon": "i-clock", "key": "o",
              "desc": "今日待办、连续天数与记忆闪回"},
@@ -730,13 +783,13 @@ FEATURE_GROUPS = [
             {"name": "学习分析", "url": "/analytics/", "icon": "i-chart", "key": "a",
              "desc": "更细的统计分析视角"},
             {"name": "学习洞察", "url": "/insights/", "icon": "i-spark", "key": "j",
-             "desc": "规则引擎给出黄金时段、集中度与下一步建议"},
+             "desc": "黄金时段、集中度与下一步建议"},
             {"name": "知识图谱", "url": "/graph/", "icon": "i-graph", "key": "g",
              "desc": "主题之间的关联网络"},
             {"name": "学习花园", "url": "/garden/", "icon": "i-sprout", "key": "e",
-             "desc": "把学习量长成一棵可视化的树"},
+             "desc": "知识树可视化"},
             {"name": "学习周报", "url": "/weekly/", "icon": "i-doc", "key": "w",
-             "desc": "AI 参与的一周复盘与建议"},
+             "desc": "一周数据复盘与建议"},
             {"name": "学习成就", "url": "/achievements/", "icon": "i-target", "key": "b",
              "desc": "徽章体系，记录坚持的痕迹"},
             {"name": "提醒中心", "url": "/notifications/", "icon": "i-bell", "key": "",
@@ -747,11 +800,13 @@ FEATURE_GROUPS = [
              "desc": "汇总笔记里的 - [ ] 待办，勾选即写回原文"},
             {"name": "活动流", "url": "/activity/", "icon": "i-layers", "key": "v",
              "desc": "最近的学习动作，按天回看"},
+            {"name": "学习助手", "url": "/agent/", "icon": "i-spark", "key": "q",
+             "desc": "模型调用工具读写你的笔记、闪卡与待办"},
         ],
     },
     {
         "title": "工具与设置",
-        "desc": "数据属于你，随时可以带走",
+        "desc": "数据与导出",
         "items": [
             {"name": "学习目标", "url": "/goals/", "icon": "i-flag", "key": "",
              "desc": "给学习设一个截止日期"},
@@ -790,6 +845,7 @@ QUICK_ACTIONS = [
     {"label": "学习洞察", "url": "/insights/", "keywords": ["洞察", "insight", "建议", "效率"]},
     {"label": "待办清单", "url": "/todos/", "keywords": ["待办", "todo", "清单", "checklist"]},
     {"label": "活动流", "url": "/activity/", "keywords": ["活动", "动态", "activity", "流水"]},
+    {"label": "学习助手", "url": "/agent/", "keywords": ["助手", "agent", "工具", "agent"]},
 ]
 
 
@@ -1063,6 +1119,7 @@ def api_tokens(request):
             "tokens": ApiToken.objects.filter(user=request.user),
             "new_token": new_token,
             "endpoints": API_ENDPOINTS,
+            "endpoints_v2": API_ENDPOINTS_V2,
         },
     )
 
@@ -1607,4 +1664,41 @@ def live_board(request):
         request,
         "learning_logs/live.html",
         {"initial": initial, "ws_url": "/ws/live/"},
+    )
+
+
+@login_required
+def agent(request):
+    """Agent 对话页：模型按需调用工具，读写自己的学习数据。"""
+    history = list(request.session.get("agent_history") or [])
+    result = None
+    error = ""
+
+    if request.method == "POST":
+        prompt = (request.POST.get("prompt") or "").strip()
+        model = request.POST.get("model") or None
+        if not prompt:
+            error = "先描述一下你想做的事。"
+        else:
+            try:
+                result = agent_runtime.run(
+                    request.user, prompt, model=resolve_model(model) if model else None
+                )
+            except AIError as exc:
+                error = str(exc)
+            else:
+                error = result.get("error", "")
+                history.append({"prompt": prompt, "answer": result.get("answer", "")})
+                request.session["agent_history"] = history[-6:]
+
+    return render(
+        request,
+        "learning_logs/agent.html",
+        {
+            "history": history,
+            "result": result,
+            "error": error,
+            "tools": list(agent_tools.REGISTRY.values()),
+            "models": available_models(),
+        },
     )

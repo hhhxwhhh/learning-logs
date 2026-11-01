@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from . import api_views, views
+from . import api_v2, api_views, views
 from .ai import views as ai_views
 
 app_name = "learning_logs"
@@ -16,6 +16,28 @@ urlpatterns = [
     path("api/v1/cards/due/", api_views.due_cards, name="api_due_cards"),
     path("api/v1/sessions/", api_views.sessions, name="api_sessions"),
     path("api/v1/stats/", api_views.stats_view, name="api_stats"),
+    # DRF 版接口
+    path("api/v2/topics/", api_v2.TopicViewSet.as_view({"get": "list"}), name="api_v2_topics"),
+    path(
+        "api/v2/topics/<int:pk>/",
+        api_v2.TopicViewSet.as_view({"get": "retrieve"}),
+        name="api_v2_topic",
+    ),
+    path("api/v2/entries/", api_v2.EntryViewSet.as_view({"get": "list", "post": "create"}), name="api_v2_entries"),
+    path(
+        "api/v2/entries/<int:pk>/",
+        api_v2.EntryViewSet.as_view({"get": "retrieve"}),
+        name="api_v2_entry",
+    ),
+    path("api/v2/cards/", api_v2.CardViewSet.as_view({"get": "list"}), name="api_v2_cards"),
+    path(
+        "api/v2/sessions/",
+        api_v2.SessionViewSet.as_view({"get": "list"}),
+        name="api_v2_sessions",
+    ),
+    path("api/v2/events/", api_v2.EventViewSet.as_view({"get": "list"}), name="api_v2_events"),
+    path("api/v2/stats/", api_v2.StatsView.as_view(), name="api_v2_stats"),
+    path("api/v2/schema/", api_v2.SchemaView.as_view(), name="api_v2_schema"),
     # API 文档与令牌
     path("settings/api/", views.api_tokens, name="api_tokens"),
     path("api/docs/", views.api_docs, name="api_docs"),
@@ -98,6 +120,8 @@ urlpatterns = [
     path("timeline/", views.timeline, name="timeline"),
     # 学习洞察
     path("insights/", views.insights, name="insights"),
+    # Agent 对话
+    path("agent/", views.agent, name="agent"),
     # 实时看板
     path("live/", views.live_board, name="live_board"),
     # 活动流

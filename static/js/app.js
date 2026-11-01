@@ -453,6 +453,7 @@
     j: "/insights/",
     k: "/todos/",
     v: "/activity/",
+    q: "/agent/",
   };
 
   var pending = false;

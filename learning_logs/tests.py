@@ -10,6 +10,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from . import events
+from .agent import runtime as agent_runtime
+from .agent import tools as agent_tools
 from .models import (
     ApiToken,
     EventLog,
@@ -1213,6 +1215,7 @@ class SmokeTests(BaseTestCase):
         "/insights/",
         "/todos/",
         "/activity/",
+        "/agent/",
         "/api/docs/",
         "/settings/api/",
         "/weekly/",
@@ -1808,3 +1811,234 @@ class LiveBoardTests(BaseTestCase):
         self.assertTrue(connected)
         self.assertEqual(hello["type"], "ready")
         self.assertEqual(reply["type"], "pong")
+
+
+class ApiV2Tests(BaseTestCase):
+    """DRF 版接口：鉴权、分页、过滤与写入。"""
+
+    def setUp(self):
+        super().setUp()
+        self.token = ApiToken.issue(self.alice, "测试令牌")
+
+    def auth(self):
+        return {"HTTP_AUTHORIZATION": f"Bearer {self.token.token}"}
+
+    def test_requires_token(self):
+        response = self.client.get("/api/v2/topics/")
+        self.assertEqual(response.status_code, 401)
+        payload = json.loads(response.content)
+        self.assertIn("error", payload)
+        self.assertIn("message", payload["error"])
+
+    def test_rejects_bad_token(self):
+        response = self.client.get(
+            "/api/v2/topics/", HTTP_AUTHORIZATION="Bearer nope"
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_lists_topics_with_pagination(self):
+        response = self.client.get("/api/v2/topics/", **self.auth())
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content)
+        self.assertIn("count", payload)
+        self.assertIn("results", payload)
+        self.assertEqual(payload["count"], 1)
+
+    def test_topic_detail_is_scoped(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        response = self.client.get(f"/api/v2/topics/{bob_topic.id}/", **self.auth())
+        self.assertEqual(response.status_code, 404)
+
+    def test_entries_can_be_filtered(self):
+        Entry.objects.create(topic=self.topic, text="接口测试笔记")
+        response = self.client.get("/api/v2/entries/?q=接口测试", **self.auth())
+        payload = json.loads(response.content)
+        self.assertEqual(payload["count"], 1)
+
+    def test_entries_can_be_created(self):
+        response = self.client.post(
+            "/api/v2/entries/",
+            data=json.dumps({"text": "通过接口写的笔记", "topic": self.topic.id}),
+            content_type="application/json",
+            **self.auth(),
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Entry.objects.filter(text="通过接口写的笔记").count(), 1)
+
+    def test_create_requires_topic(self):
+        response = self.client.post(
+            "/api/v2/entries/",
+            data=json.dumps({"text": "没有主题"}),
+            content_type="application/json",
+            **self.auth(),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_cannot_use_other_user_topic(self):
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        response = self.client.post(
+            "/api/v2/entries/",
+            data=json.dumps({"text": "越权写入", "topic": bob_topic.id}),
+            content_type="application/json",
+            **self.auth(),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_stats_endpoint(self):
+        response = self.client.get("/api/v2/stats/", **self.auth())
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content)
+        self.assertIn("overview", payload)
+        self.assertIn("streak", payload)
+
+    def test_events_endpoint(self):
+        events.publish("topic_created", self.alice, "事件接口测试")
+        response = self.client.get("/api/v2/events/", **self.auth())
+        payload = json.loads(response.content)
+        self.assertEqual(payload["count"], 1)
+
+    def test_schema_is_public(self):
+        response = self.client.get("/api/v2/schema/")
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content)
+        self.assertEqual(payload["openapi"], "3.0.3")
+        self.assertIn("/topics/", payload["paths"])
+
+
+class FakeToolProvider:
+    """按脚本返回工具调用的假 Provider，不联网。"""
+
+    def __init__(self, script):
+        self.script = list(script)
+        self.rounds = 0
+
+    def chat(self, messages, model=None, tools=None):
+        self.rounds += 1
+        if self.script:
+            return self.script.pop(0)
+        return {"content": "没有更多动作了。", "tool_calls": []}
+
+
+class AgentTests(BaseTestCase):
+    """Agent 工具与运行时。"""
+
+    def test_agent_page(self):
+        response = self.client.get(reverse("learning_logs:agent"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "学习助手")
+
+    def test_tool_registry_has_both_kinds(self):
+        names = set(agent_tools.REGISTRY)
+        self.assertIn("search_entries", names)
+        self.assertIn("create_entry", names)
+
+    def test_search_tool_only_sees_own_entries(self):
+        Entry.objects.create(topic=self.topic, text="Django ORM 笔记")
+        result = agent_tools.run(self.alice, "search_entries", {"query": "Django ORM"})
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(result["results"]), 1)
+
+        other = agent_tools.run(self.bob, "search_entries", {"query": "Django ORM"})
+        self.assertTrue(other["ok"])
+        self.assertEqual(other["results"], [])
+
+    def test_create_entry_tool_writes_note(self):
+        result = agent_tools.run(
+            self.alice, "create_entry", {"topic": "自动整理", "text": "由 Agent 写入"}
+        )
+        self.assertTrue(result["ok"])
+        self.assertTrue(Entry.objects.filter(text="由 Agent 写入").exists())
+
+    def test_create_flashcard_tool(self):
+        result = agent_tools.run(
+            self.alice,
+            "create_flashcard",
+            {"topic": "闪卡主题", "front": "问题", "back": "答案"},
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(Flashcard.objects.filter(front="问题").count(), 1)
+
+    def test_create_todo_tool(self):
+        Entry.objects.create(topic=self.topic, text="已有笔记")
+        result = agent_tools.run(
+            self.alice, "create_todo", {"topic": self.topic.text, "text": "再复习一遍"}
+        )
+        self.assertTrue(result["ok"])
+        self.assertIn("- [ ] 再复习一遍", self.topic.entry_set.first().text)
+
+    def test_unknown_tool_returns_error(self):
+        result = agent_tools.run(self.alice, "no_such_tool", {})
+        self.assertFalse(result["ok"])
+
+    def test_runtime_calls_tool_then_answers(self):
+        Entry.objects.create(topic=self.topic, text="需要检索的内容")
+        provider = FakeToolProvider(
+            [
+                {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "name": "search_entries",
+                            "arguments": {"query": "需要检索"},
+                        }
+                    ],
+                },
+                {"content": "找到了 1 条相关笔记。", "tool_calls": []},
+            ]
+        )
+        result = agent_runtime.run(self.alice, "帮我找一下笔记", provider=provider)
+        self.assertEqual(result["answer"], "找到了 1 条相关笔记。")
+        self.assertEqual(len(result["steps"]), 1)
+        self.assertEqual(result["steps"][0]["tool"], "search_entries")
+
+    def test_runtime_runs_write_tool(self):
+        provider = FakeToolProvider(
+            [
+                {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "name": "create_entry",
+                            "arguments": {"topic": "Agent 主题", "text": "写入成功"},
+                        }
+                    ],
+                },
+                {"content": "已经写好了。", "tool_calls": []},
+            ]
+        )
+        agent_runtime.run(self.alice, "帮我记一条", provider=provider)
+        self.assertTrue(Entry.objects.filter(text="写入成功").exists())
+
+    def test_runtime_stops_at_max_steps(self):
+        provider = FakeToolProvider(
+            [
+                {
+                    "content": "",
+                    "tool_calls": [
+                        {"id": "x", "name": "list_topics", "arguments": {}}
+                    ],
+                }
+            ]
+            * 8
+        )
+        result = agent_runtime.run(self.alice, "一直调", provider=provider, max_steps=2)
+        self.assertEqual(result["error"], "max_steps")
+
+    def test_runtime_reports_provider_failure(self):
+        class BrokenProvider:
+            def chat(self, messages, model=None, tools=None):
+                raise RuntimeError("boom")
+
+        result = agent_runtime.run(self.alice, "问点什么", provider=BrokenProvider())
+        self.assertIn("boom", result["error"])
+
+    def test_agent_page_post(self):
+        provider = FakeToolProvider([{"content": "这是回答。", "tool_calls": []}])
+        with patch("learning_logs.views.agent_runtime.get_provider", return_value=provider):
+            response = self.client.post(
+                reverse("learning_logs:agent"), {"prompt": "你好"}
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "这是回答。")
