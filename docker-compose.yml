@@ -1,0 +1,120 @@
+# 全栈部署：web / worker / beat / redis / kafka
+#
+#   docker compose up -d --build
+#   docker compose logs -f web
+#
+# 服务之间用服务名互联，Redis 与 Kafka 只在容器网络内暴露。
+
+services:
+  web:
+    build: .
+    command: uvicorn ll_project.asgi:application --host 0.0.0.0 --port 8000 --workers 3
+    environment:
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_DB_PATH: /app/data/db.sqlite3
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      KAFKA_ENABLED: "1"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:11434/v1}
+      AI_API_KEY: ${AI_API_KEY:-ollama}
+      AI_MODEL: ${AI_MODEL:-qwen2.5:7b}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: celery -A ll_project worker --loglevel=info
+    environment:
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_DB_PATH: /app/data/db.sqlite3
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      KAFKA_ENABLED: "1"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:11434/v1}
+      AI_API_KEY: ${AI_API_KEY:-ollama}
+      AI_MODEL: ${AI_MODEL:-qwen2.5:7b}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  beat:
+    build: .
+    command: celery -A ll_project beat --loglevel=info
+    environment:
+      DJANGO_DEBUG: "0"
+      DJANGO_DB_PATH: /app/data/db.sqlite3
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  events:
+    build: .
+    command: python manage.py consume_events --source=auto
+    environment:
+      DJANGO_DEBUG: "0"
+      DJANGO_DB_PATH: /app/data/db.sqlite3
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_ENABLED: "1"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      kafka:
+        condition: service_started
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  kafka:
+    image: bitnami/kafka:3.7
+    environment:
+      KAFKA_CFG_NODE_ID: "0"
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  kafka-data:
