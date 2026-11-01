@@ -13,6 +13,8 @@ from django.db.models import Count
 
 from learning_logs.models import Entry, Tag, TaggedItem, Topic
 
+from .cache import cached
+
 _SPLIT = re.compile(r"[,\s，、;；/|]+")
 MAX_TAGS = 8
 MAX_LEN = 24
@@ -79,6 +81,7 @@ def prune(user) -> int:
     return count
 
 
+@cached("tagcloud", ttl=300)
 def cloud(user, limit: int | None = None) -> list[dict]:
     """标签云数据：按使用次数降序，附带相对权重用于渲染字号。"""
     rows = []

@@ -18,6 +18,8 @@ from django.db.models import Count
 
 from learning_logs.models import Entry, TaggedItem, Topic
 
+from .cache import cached
+
 WIDTH = 880
 HEIGHT = 520
 PADDING = 58
@@ -145,6 +147,7 @@ def _layout(nodes: list[dict], edges: list[dict], seed: int = 7) -> None:
         )
 
 
+@cached("graph", ttl=600)
 def build(user) -> dict:
     """生成知识图谱的 nodes / edges 与关联推荐。"""
     topics = (

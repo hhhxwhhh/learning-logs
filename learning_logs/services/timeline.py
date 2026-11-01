@@ -9,12 +9,15 @@ from django.utils import timezone
 
 from learning_logs.models import Entry, Flashcard, StudySession
 
+from .cache import cached
+
 
 def month_key(value) -> str:
     local = timezone.localtime(value)
     return f"{local:%Y-%m}"
 
 
+@cached("timeline", ttl=600)
 def build(user, months: int = 12) -> dict:
     """生成按月分组的时间线数据。"""
     today = timezone.localdate()

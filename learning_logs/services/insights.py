@@ -12,6 +12,8 @@ from django.utils import timezone
 
 from learning_logs.models import Entry, Flashcard, StudySession, Topic
 
+from .cache import cached
+
 WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
 
@@ -81,6 +83,7 @@ def _review_health(user) -> dict:
     }
 
 
+@cached("insights", ttl=600)
 def build(user) -> dict:
     """生成洞察卡片与行动建议。"""
     today = timezone.localdate()

@@ -74,3 +74,12 @@ def dur_filter(minutes):
     if hours:
         return f"{hours} 小时"
     return f"{mins} 分钟"
+
+
+@register.filter(name="get_item")
+def get_item_filter(dictionary, key):
+    """从字典里取值，取不到时返回 0。"""
+    try:
+        return dictionary.get(key, 0)
+    except AttributeError:
+        return 0

@@ -17,6 +17,8 @@ from learning_logs.models import (
     Topic,
 )
 
+from .cache import cached
+
 
 def _local_date(value):
     """把 aware datetime 转成当前时区下的日期。"""
@@ -60,6 +62,7 @@ def _level(minutes: int) -> int:
     return 4
 
 
+@cached("heatmap", ttl=300)
 def heatmap_weeks(user, weeks: int = 17) -> list[list[dict]]:
     """生成 GitHub 风格热力图数据：固定 weeks 列，每列周一到周日。"""
     weeks = max(1, weeks)
@@ -103,6 +106,7 @@ def range_minutes(user, days: int) -> int:
     return sum(daily_minutes(user, days=days).values())
 
 
+@cached("weekly", ttl=300)
 def weekly_series(user, weeks: int = 8) -> list[dict]:
     """最近 N 周的每日分钟数与周汇总，用于纯 CSS 柱状图。"""
     today = timezone.localdate()
@@ -143,6 +147,7 @@ def weekly_totals(user, weeks: int = 8) -> list[dict]:
     return rows
 
 
+@cached("hours", ttl=300)
 def hour_distribution(user) -> list[dict]:
     """一天 24 小时的学习时长分布（分钟）。"""
     buckets = defaultdict(int)
@@ -155,6 +160,7 @@ def hour_distribution(user) -> list[dict]:
     return [{"hour": hour, "minutes": buckets.get(hour, 0)} for hour in range(24)]
 
 
+@cached("overview", ttl=300)
 def overview(user) -> dict:
     """仪表盘顶部指标。"""
     topics = Topic.objects.filter(owner=user)
@@ -177,6 +183,7 @@ def overview(user) -> dict:
     }
 
 
+@cached("ranking", ttl=300)
 def topic_ranking(user, limit: int = 6) -> list[dict]:
     """按学习记录数量给主题排序，附带完成度。"""
     topics = (
