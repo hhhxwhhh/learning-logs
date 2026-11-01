@@ -855,6 +855,52 @@ class ApiTokenTests(BaseTestCase):
         self.assertTrue(payload["ok"])
         self.assertIn("streak", payload)
 
+    def test_error_response_carries_code(self):
+        """错误响应里有状态码，客户端不用再从 HTTP 头里读。"""
+        response = self.client.get(reverse("learning_logs:api_topics"))
+        payload = response.json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["code"], 401)
+        self.assertTrue(payload["error"])
+
+    def test_quick_entry_error_carries_code(self):
+        response = self.client.post(
+            reverse("learning_logs:api_quick_entry"),
+            {"topic": self.topic.id, "text": "  "},
+            **self.auth(),
+        )
+        self.assertEqual(response.json()["code"], 400)
+
+    def test_quick_entry_cannot_write_to_other_topic(self):
+        """别人的主题不能拿来挂笔记。"""
+        bob_topic = Topic.objects.create(text="Bob 的主题", owner=self.bob)
+        response = self.client.post(
+            reverse("learning_logs:api_quick_entry"),
+            {"topic": bob_topic.id, "text": "越权笔记"},
+            **self.auth(),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Entry.objects.filter(text="越权笔记").exists())
+
+    def test_entries_limit_is_capped(self):
+        for index in range(5):
+            Entry.objects.create(topic=self.topic, text=f"批量笔记 {index}")
+        response = self.client.get(
+            reverse("learning_logs:api_entries"), {"limit": "2"}, **self.auth()
+        )
+        payload = response.json()
+        self.assertEqual(len(payload["results"]), 2)
+        # count 是总数，results 才受 limit 限制
+        self.assertEqual(payload["count"], 6)
+
+    def test_token_in_query_string_works(self):
+        """脚本有时不方便带请求头，令牌也可以放查询参数。"""
+        response = self.client.get(
+            reverse("learning_logs:api_topics"), {"token": self.token.token}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+
 
 class NotificationTests(BaseTestCase):
     """站内提醒的生成、已读与隔离。"""
@@ -1920,6 +1966,26 @@ class ApiV2Tests(BaseTestCase):
         self.assertIn("error", payload)
         self.assertIn("message", payload["error"])
 
+    def test_error_payload_has_code_and_message(self):
+        response = self.client.get("/api/v2/topics/")
+        payload = json.loads(response.content)
+        self.assertEqual(payload["error"]["code"], 401)
+        self.assertTrue(payload["error"]["message"])
+
+    def test_validation_error_keeps_field_names(self):
+        """字段校验错误要能看出是哪个字段错了。"""
+        response = self.client.post(
+            "/api/v2/entries/",
+            data=json.dumps({"text": ""}),
+            content_type="application/json",
+            **self.auth(),
+        )
+        self.assertEqual(response.status_code, 400)
+        payload = json.loads(response.content)
+        self.assertEqual(payload["error"]["code"], 400)
+        self.assertIn("fields", payload["error"])
+        self.assertIn("text", payload["error"]["fields"])
+
     def test_rejects_bad_token(self):
         response = self.client.get(
             "/api/v2/topics/", HTTP_AUTHORIZATION="Bearer nope"
@@ -2417,6 +2483,23 @@ class ApiSchemaTests(BaseTestCase):
         response = self.client.get("/api/v2/schema/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["openapi"], "3.0.3")
+
+    def test_schema_defines_error_structure(self):
+        from learning_logs.api_schema import build_openapi
+
+        doc = build_openapi()
+        error = doc["components"]["schemas"]["Error"]
+        self.assertIn("error", error["properties"])
+        self.assertIn("code", error["properties"]["error"]["properties"])
+        self.assertIn("message", error["properties"]["error"]["properties"])
+
+    def test_schema_references_error_component(self):
+        from learning_logs.api_schema import build_openapi
+
+        doc = build_openapi()
+        unauthorized = doc["paths"]["/topics/"]["get"]["responses"]["401"]
+        ref = unauthorized["content"]["application/json"]["schema"]["$ref"]
+        self.assertEqual(ref, "#/components/schemas/Error")
 
 
 class EventPipelineTests(BaseTestCase):

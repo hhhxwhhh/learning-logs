@@ -29,7 +29,11 @@ def _json(payload: dict, status: int = 200) -> JsonResponse:
 
 
 def _error(message: str, status: int) -> JsonResponse:
-    return _json({"ok": False, "error": message}, status=status)
+    """错误响应。
+
+    error 保持字符串形态，老脚本不用改；补一个 code 方便客户端按状态码分支。
+    """
+    return _json({"ok": False, "error": message, "code": status}, status=status)
 
 
 def _guard(request):

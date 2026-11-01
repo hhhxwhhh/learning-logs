@@ -24,9 +24,21 @@ def api_exception_handler(exc, context):
         return None
 
     detail = response.data
+    fields = {}
     if isinstance(detail, dict) and "detail" in detail:
         message = str(detail["detail"])
+    elif isinstance(detail, dict):
+        # 字段校验错误：保留到字段名，客户端才知道要改哪里
+        message = "提交的数据有误。"
+        fields = {
+            key: [str(item) for item in value] if isinstance(value, list) else [str(value)]
+            for key, value in detail.items()
+        }
     else:
         message = str(detail)
-    response.data = {"error": {"code": response.status_code, "message": message}}
+
+    error = {"code": response.status_code, "message": message}
+    if fields:
+        error["fields"] = fields
+    response.data = {"error": error}
     return response

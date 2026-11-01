@@ -128,6 +128,13 @@ def build_openapi() -> dict:
     """生成完整的 OpenAPI 3 文档。"""
     paths: dict = {}
 
+    error_response = {
+        "description": "错误",
+        "content": {
+            "application/json": {"schema": {"$ref": "#/components/schemas/Error"}}
+        },
+    }
+
     for viewset, prefix, label in ENDPOINTS:
         key = prefix.strip("/").split("/")[0]
         serializer = viewset.serializer_class
@@ -157,8 +164,8 @@ def build_openapi() -> dict:
                             }
                         },
                     },
-                    "401": {"description": "令牌缺失或无效"},
-                    "429": {"description": "超过限流"},
+                    "401": {"description": "令牌缺失或无效", **error_response},
+                    "429": {"description": "超过限流", **error_response},
                 },
             }
         }
@@ -177,7 +184,7 @@ def build_openapi() -> dict:
                         "description": "单个对象",
                         "content": {"application/json": {"schema": item_schema}},
                     },
-                    "404": {"description": "不存在或不属于当前用户"},
+                    "404": {"description": "不存在或不属于当前用户", **error_response},
                 },
             }
         }
@@ -196,7 +203,7 @@ def build_openapi() -> dict:
                         "description": "已创建",
                         "content": {"application/json": {"schema": item_schema}},
                     },
-                    "400": {"description": "参数不合法"},
+                    "400": {"description": "参数不合法", **error_response},
                 },
             }
 
@@ -242,6 +249,30 @@ def build_openapi() -> dict:
         "servers": [{"url": "/api/v2"}],
         "components": {
             "securitySchemes": {"bearer": {"type": "http", "scheme": "bearer"}},
+            "schemas": {
+                "Error": {
+                    "type": "object",
+                    "properties": {
+                        "error": {
+                            "type": "object",
+                            "properties": {
+                                "code": {"type": "integer", "description": "HTTP 状态码"},
+                                "message": {"type": "string"},
+                                "fields": {
+                                    "type": "object",
+                                    "description": "字段校验错误时给出各字段的提示",
+                                    "additionalProperties": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                    },
+                                },
+                            },
+                            "required": ["code", "message"],
+                        }
+                    },
+                    "required": ["error"],
+                }
+            },
         },
         "security": [{"bearer": []}],
         "tags": [
