@@ -1,15 +1,15 @@
 {% extends "learning_logs/base.html" %}
 {% load ll_extras %}
 
-{% block title %}AI 助教 · {{ topic.text }}{% endblock %}
+{% block title %}模型助教 · {{ topic.text }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
   <div>
     <div class="page-head__eyebrow">
-      <a href="{% url 'learning_logs:topic' topic.id %}">{{ topic.text }}</a> · AI 助教
+      <a href="{% url 'learning_logs:topic' topic.id %}">{{ topic.text }}</a> · 模型助教
     </div>
-    <h1 style="font-size: 1.6rem">和 AI 一起复盘</h1>
+    <h1 style="font-size: 1.6rem">针对这个主题复盘</h1>
     <p>回答会基于该主题的 {{ entry_count }} 条笔记，模型不会凭空编造。</p>
   </div>
   <div class="cluster">
@@ -92,7 +92,7 @@
       <div class="empty" style="padding: 2rem 1rem">
         <div class="empty__icon"><svg><use href="#i-brain" /></svg></div>
         <h3>从这个主题的笔记开始</h3>
-        <p>可以直接提问，也可以点下面的快捷动作，让 AI 先帮你理一遍。</p>
+        <p>可以直接提问，也可以点下面的快捷动作。</p>
         <div class="cluster" style="justify-content: center">
           {% for action in quick_actions %}
           <button class="btn btn--sm btn--soft" type="button" data-quick="{{ action.key }}">

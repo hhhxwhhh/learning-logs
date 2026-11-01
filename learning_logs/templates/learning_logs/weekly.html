@@ -74,7 +74,7 @@
 
     <section class="card">
       <div class="card__head">
-        <h3>AI 复盘</h3>
+        <h3>模型复盘</h3>
         {% if saved %}
         <span class="tiny muted">{{ saved.created_at|date:"n月j日 H:i" }} 生成 · {{ saved.model_name }}</span>
         {% endif %}
@@ -86,7 +86,7 @@
         <div class="empty" style="padding: 2rem 1rem">
           <div class="empty__icon"><svg><use href="#i-spark" /></svg></div>
           <h3>还没有这一周的复盘</h3>
-          <p>AI 会基于上面的真实数据写一段回顾与建议，不会编造细节。</p>
+          <p>内容基于上面的实际数据生成，不确定的地方会说明。</p>
         </div>
         {% endif %}
       </div>
