@@ -7,7 +7,7 @@
   <div>
     <div class="page-head__eyebrow">API</div>
     <h1>开放接口</h1>
-    <p>只读为主、写入受限的 JSON 接口，用来把知迹接到你自己的工具链里。</p>
+    <p>通过令牌访问自己的学习数据，JSON 格式。v1 保持原有结构，v2 由 Django REST Framework 提供。</p>
   </div>
   <div class="cluster">
     <a class="btn btn--primary" href="{% url 'learning_logs:api_tokens' %}">
@@ -23,9 +23,14 @@
     <span class="metric__hint">吊销即刻失效</span>
   </div>
   <div class="metric">
-    <span class="metric__label">接口数量</span>
+    <span class="metric__label">v1 接口</span>
     <span class="metric__value">{{ endpoints|length }}</span>
-    <span class="metric__hint">统一 /api/v1/ 前缀</span>
+    <span class="metric__hint">结构不变，兼容已有脚本</span>
+  </div>
+  <div class="metric">
+    <span class="metric__label">v2 接口</span>
+    <span class="metric__value">{{ endpoints_v2|length }}</span>
+    <span class="metric__hint">分页、搜索与统一错误结构</span>
   </div>
   <div class="metric">
     <span class="metric__label">认证方式</span>
@@ -69,6 +74,44 @@
   </div>
 </section>
 
+<section class="card mt-3">
+  <div class="card__head">
+    <h3>v2 接口</h3>
+    <span class="tiny muted">/api/v2/ 前缀，DRF 实现</span>
+  </div>
+  <div class="card__body">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>方法</th>
+            <th>路径</th>
+            <th>说明</th>
+            <th>参数</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for endpoint in endpoints_v2 %}
+          <tr>
+            <td>
+              <span class="badge {% if endpoint.method == 'POST' %}badge--accent{% else %}badge--outline{% endif %}">
+                {{ endpoint.method }}
+              </span>
+            </td>
+            <td><code>{{ endpoint.path }}</code></td>
+            <td>{{ endpoint.desc }}</td>
+            <td class="tiny muted">{{ endpoint.params }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="tiny muted mt-2">
+      OpenAPI 文档：<a href="{% url 'learning_logs:api_v2_schema' %}">/api/v2/schema/</a>
+    </p>
+  </div>
+</section>
+
 <div class="split mt-3">
   <section class="card">
     <div class="card__head"><h3>请求示例</h3></div>
@@ -83,6 +126,14 @@ curl -H "Authorization: Bearer $ZHIJI_TOKEN" \
 curl -X POST -H "Authorization: Bearer $ZHIJI_TOKEN" \
   -d "topic_name=速记" -d "text=今天的收获" \
   {{ request.scheme }}://{{ request.get_host }}/api/v1/entries/create/</pre>
+      <pre class="code-sample"># v2：分页读取笔记
+curl -H "Authorization: Bearer $ZHIJI_TOKEN" \
+  "{{ request.scheme }}://{{ request.get_host }}/api/v2/entries/?page=2&amp;page_size=10"</pre>
+      <pre class="code-sample"># v2：写入一条笔记（JSON）
+curl -X POST -H "Authorization: Bearer $ZHIJI_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"今天的收获","topic":1}' \
+  {{ request.scheme }}://{{ request.get_host }}/api/v2/entries/</pre>
     </div>
   </section>
 
@@ -97,7 +148,7 @@ curl -X POST -H "Authorization: Bearer $ZHIJI_TOKEN" \
     {"id": 1, "text": "Django ORM", "progress": 40}
   ]
 }</pre>
-        <p class="tiny muted mt-2">出错时返回 <code>{"ok": false, "error": "..."}</code> 与对应 HTTP 状态码。</p>
+        <p class="tiny muted mt-2">v1 出错时返回 <code>{"ok": false, "error": "..."}</code>；v2 统一为 <code>{"error": {"code": 400, "message": "..."}}</code>。</p>
       </div>
     </section>
 
