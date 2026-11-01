@@ -11,7 +11,6 @@ import json
 import logging
 
 from django.conf import settings
-from django.core.cache import cache
 from rest_framework.throttling import SimpleRateThrottle
 
 logger = logging.getLogger(__name__)

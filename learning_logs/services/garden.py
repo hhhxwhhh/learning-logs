@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import calendar
 import math
-from datetime import date
 
 from django.db.models import Count
 from django.utils import timezone

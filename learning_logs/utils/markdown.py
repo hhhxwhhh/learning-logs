@@ -14,7 +14,6 @@ try:  # linkify 是可选依赖，缺失时不影响渲染
     _LINKIFY = True
 except ImportError:  # pragma: no cover
     _LINKIFY = False
-
 _md = (
     MarkdownIt(
         "commonmark",

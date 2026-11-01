@@ -150,7 +150,6 @@ class DashboardTests(BaseTestCase):
         self.assertTrue(all(len(week) == 7 for week in weeks))
 
     def test_streak_counts_consecutive_days(self):
-        today = timezone.localdate()
         Entry.objects.create(topic=self.topic, text="昨天")
         Entry.objects.filter(text="昨天").update(date_added=timezone.now() - timedelta(days=1))
         self.assertEqual(stats.current_streak(self.alice), 2)
@@ -2127,7 +2126,7 @@ class AgentTests(BaseTestCase):
 
     def test_agent_page_post(self):
         provider = FakeToolProvider([{"content": "这是回答。", "tool_calls": []}])
-        with patch("learning_logs.views.agent_runtime.get_provider", return_value=provider):
+        with patch("learning_logs.views.assistant.agent_runtime.get_provider", return_value=provider):
             response = self.client.post(
                 reverse("learning_logs:agent"), {"prompt": "你好"}
             )

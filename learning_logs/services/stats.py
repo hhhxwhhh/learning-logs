@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 
-from django.db.models import Count, Sum
+from django.db.models import Count
 from django.utils import timezone
 
 from learning_logs.models import (
