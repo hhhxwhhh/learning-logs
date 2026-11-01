@@ -518,3 +518,58 @@ def snapshot_entry(entry: Entry, editor=None) -> EntryRevision | None:
     if original is None or original == entry.text:
         return None
     return EntryRevision.objects.create(entry=entry, text=original, edited_by=editor)
+
+
+class EventLog(models.Model):
+    """学习事件流水。
+
+    事件同时写库和投递到消息总线：写库保证页面立刻能看见，
+    投递让外部系统（数据看板、其他服务）也能拿到同一份流。
+    event_id 用于去重，重复投递不会写出第二条。
+    """
+
+    KIND_CHOICES = [
+        ("topic_created", "新建主题"),
+        ("entry_created", "新建笔记"),
+        ("entry_updated", "修改笔记"),
+        ("session_started", "开始专注"),
+        ("session_ended", "结束专注"),
+        ("card_created", "新建闪卡"),
+        ("card_reviewed", "复习闪卡"),
+        ("todo_toggled", "勾选待办"),
+        ("tag_synced", "更新标签"),
+        ("path_created", "新建学习路径"),
+    ]
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="events", verbose_name="用户"
+    )
+    event_id = models.CharField("事件 ID", max_length=40, unique=True)
+    kind = models.CharField("事件类型", max_length=32, choices=KIND_CHOICES)
+    summary = models.CharField("摘要", max_length=200)
+    payload = models.JSONField("附加数据", default=dict, blank=True)
+    topic = models.ForeignKey(
+        Topic,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="events",
+        verbose_name="相关主题",
+    )
+    created_at = models.DateTimeField("发生时间", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "学习事件"
+        verbose_name_plural = "学习事件"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["kind"]),
+        ]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} · {self.summary}"
+
+    @property
+    def label(self) -> str:
+        return dict(self.KIND_CHOICES).get(self.kind, self.kind)

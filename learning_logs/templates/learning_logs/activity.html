@@ -1,0 +1,68 @@
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
+
+{% block title %}活动流 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Activity</div>
+    <h1>活动流</h1>
+    <p>每写一条笔记、每完成一次专注，都会在这里留下一条记录。</p>
+  </div>
+  <div class="cluster">
+    <span class="badge badge--outline">{{ total }} 条事件</span>
+  </div>
+</div>
+
+<nav class="chip-row mb-3" aria-label="事件类型筛选">
+  <a class="chip {% if not kind %}is-active{% endif %}" href="{% url 'learning_logs:activity' %}">全部</a>
+  {% for value, label in kinds %}
+    {% if counts|get_item:value %}
+    <a class="chip {% if kind == value %}is-active{% endif %}" href="?kind={{ value }}">
+      {{ label }} {{ counts|get_item:value }}
+    </a>
+    {% endif %}
+  {% endfor %}
+</nav>
+
+{% if groups %}
+<div class="timeline">
+  {% for group in groups %}
+  <section class="timeline__item">
+    <div class="timeline__marker" aria-hidden="true"></div>
+    <div class="card">
+      <div class="card__head">
+        <h3>{{ group.day|date:"Y-m-d" }}</h3>
+        <span class="tiny muted">{{ group.items|length }} 条</span>
+      </div>
+      <div class="card__body">
+        <ul class="list">
+          {% for item in group.items %}
+          <li class="list__item">
+            <div class="list__main">
+              <span class="list__title">{{ item.summary }}</span>
+              <span class="list__meta">
+                <span>{{ item.label }}</span>
+                <span>{{ item.created_at|time:"H:i" }}</span>
+                {% if item.topic %}
+                <a href="{% url 'learning_logs:topic' item.topic_id %}">{{ item.topic.text }}</a>
+                {% endif %}
+              </span>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+  <p class="empty__title">还没有活动记录</p>
+  <p>写一条笔记或者完成一次专注，这里就会有内容。</p>
+  <a class="btn btn--primary btn--sm" href="{% url 'learning_logs:new_topic' %}">新建主题</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -29,6 +29,7 @@ from .models import (
     Comment,
     EntryRevision,
     Entry,
+    EventLog,
     Flashcard,
     LearningGoal,
     LearningPath,
@@ -42,7 +43,9 @@ from .models import (
     Topic,
     WeeklyReport,
 )
+from . import events
 from .services import achievements as achievements_service
+from .services import cache as cache_service
 from .services import export as export_service
 from .services import garden as garden_service
 from .services import graph as graph_service
@@ -148,6 +151,14 @@ def new_entry(request, topic_id):
            new_entry.topic = topic
            new_entry.save()
            tags_service.sync_tags(request.user, new_entry, request.POST.get("tags", ""))
+           events.publish(
+               "entry_created",
+               request.user,
+               f"在「{topic.text}」写了一条笔记",
+               topic=topic,
+               payload={"entry_id": new_entry.id},
+           )
+           cache_service.invalidate(request.user.id)
            return redirect('learning_logs:topic', topic_id=topic_id)
    # 显示空表单或者指出表单的数据无效
    context = {'topic': topic, 'form': form, 'tags_input': request.POST.get('tags', '')}
@@ -167,6 +178,13 @@ def new_topic(request):
             new_topic.owner = request.user
             new_topic.save()
             tags_service.sync_tags(request.user, new_topic, request.POST.get("tags", ""))
+            events.publish(
+                "topic_created",
+                request.user,
+                f"新建主题「{new_topic.text}」",
+                topic=new_topic,
+            )
+            cache_service.invalidate(request.user.id)
             return redirect('learning_logs:topics')  # 重定向到主题页面topics
     # 显示空表单或者指出表单数据无效
     context = {'form': form, 'tags_input': request.POST.get('tags', '')}
@@ -189,6 +207,14 @@ def edit_entry(request,entry_id):
             snapshot_entry(entry, request.user)
             form.save()
             tags_service.sync_tags(request.user, entry, tags_input)
+            events.publish(
+                "entry_updated",
+                request.user,
+                f"修改了「{topic.text}」里的笔记",
+                topic=topic,
+                payload={"entry_id": entry.id},
+            )
+            cache_service.invalidate(request.user.id)
             return redirect('learning_logs:topic',topic_id=topic.id)
     context={'entry':entry,'topic':topic,'form':form,'tags_input':tags_input}
     return render(request,'learning_logs/edit_entry.html',context)
@@ -569,6 +595,14 @@ def review_answer(request, card_id):
     except (TypeError, ValueError):
         quality = 3
     card.review(quality)
+    events.publish(
+        "card_reviewed",
+        request.user,
+        f"复习了「{card.topic.text}」的卡片",
+        topic=card.topic,
+        payload={"card_id": card.id, "quality": quality},
+    )
+    cache_service.invalidate(request.user.id)
     return redirect("learning_logs:review")
 
 
@@ -711,6 +745,8 @@ FEATURE_GROUPS = [
              "desc": "按月回看笔记、卡片与投入时长"},
             {"name": "待办清单", "url": "/todos/", "icon": "i-check", "key": "k",
              "desc": "汇总笔记里的 - [ ] 待办，勾选即写回原文"},
+            {"name": "活动流", "url": "/activity/", "icon": "i-layers", "key": "v",
+             "desc": "最近的学习动作，按天回看"},
         ],
     },
     {
@@ -753,6 +789,7 @@ QUICK_ACTIONS = [
     {"label": "学习时间线", "url": "/timeline/", "keywords": ["时间线", "timeline", "历史", "回顾"]},
     {"label": "学习洞察", "url": "/insights/", "keywords": ["洞察", "insight", "建议", "效率"]},
     {"label": "待办清单", "url": "/todos/", "keywords": ["待办", "todo", "清单", "checklist"]},
+    {"label": "活动流", "url": "/activity/", "keywords": ["活动", "动态", "activity", "流水"]},
 ]
 
 
@@ -1178,6 +1215,14 @@ def focus_log(request):
     StudySession.objects.create(
         user=request.user, topic=topic, start_time=end - timedelta(minutes=minutes), end_time=end
     )
+    events.publish(
+        "session_ended",
+        request.user,
+        f"专注了 {minutes} 分钟：{topic.text}",
+        topic=topic,
+        payload={"minutes": minutes},
+    )
+    cache_service.invalidate(request.user.id)
     return JsonResponse(
         {
             "ok": True,
@@ -1466,6 +1511,14 @@ def toggle_todo(request, entry_id):
 
     snapshot_entry(entry, request.user)
     entry.save()
+    events.publish(
+        "todo_toggled",
+        request.user,
+        f"{'完成' if result['done'] else '恢复'}了一条待办：{result['text']}",
+        topic=entry.topic,
+        payload={"entry_id": entry.id, "done": result["done"]},
+    )
+    cache_service.invalidate(request.user.id)
 
     wants_json = request.headers.get("x-requested-with") == "XMLHttpRequest"
     if not wants_json:
@@ -1474,3 +1527,84 @@ def toggle_todo(request, entry_id):
 
     remaining = todos_service.summarize(todos_service.scan(request.user))
     return JsonResponse({"ok": True, "done": result["done"], "open": remaining["open"]})
+
+
+@login_required
+def activity(request):
+    """活动流：最近发生过哪些学习动作。"""
+    kind = (request.GET.get("kind") or "").strip()
+    queryset = EventLog.objects.filter(user=request.user).select_related("topic")
+    if kind:
+        queryset = queryset.filter(kind=kind)
+
+    counts = {
+        row["kind"]: row["total"]
+        for row in queryset.values("kind").annotate(total=Count("id"))
+    }
+    size = getattr(settings, "ACTIVITY_FEED_SIZE", 60)
+    items = list(queryset[:size])
+
+    groups = []
+    for item in items:
+        day = timezone.localtime(item.created_at).date()
+        if not groups or groups[-1]["day"] != day:
+            groups.append({"day": day, "items": []})
+        groups[-1]["items"].append(item)
+
+    return render(
+        request,
+        "learning_logs/activity.html",
+        {
+            "groups": groups,
+            "kind": kind,
+            "counts": counts,
+            "total": sum(counts.values()),
+            "kinds": EventLog.KIND_CHOICES,
+        },
+    )
+
+
+@login_required
+def live_board(request):
+    """实时看板：首屏数据由服务端给，之后走 WebSocket 增量更新。"""
+    today = timezone.localdate()
+    start = timezone.make_aware(datetime.combine(today, time.min))
+
+    entries_today = Entry.objects.filter(
+        topic__owner=request.user, date_added__gte=start
+    ).count()
+    sessions = StudySession.objects.filter(
+        user=request.user, start_time__gte=start, duration__isnull=False
+    )
+    minutes = sum(session.duration_minutes() for session in sessions)
+    due_cards = Flashcard.objects.filter(
+        user=request.user, due_date__lte=today
+    ).count()
+    open_todos = todos_service.summarize(todos_service.scan(request.user))["open"]
+
+    recent = EventLog.objects.filter(user=request.user).select_related("topic")[:20]
+    initial = {
+        "metrics": {
+            "entries": entries_today,
+            "minutes": minutes,
+            "cards": due_cards,
+            "todos": open_todos,
+        },
+        "events": [
+            {
+                "event_id": item.event_id,
+                "kind": item.kind,
+                "label": item.label,
+                "summary": item.summary,
+                "topic": item.topic.text if item.topic else "",
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in recent
+        ],
+    }
+
+    return render(
+        request,
+        "learning_logs/live.html",
+        {"initial": initial, "ws_url": "/ws/live/"},
+    )

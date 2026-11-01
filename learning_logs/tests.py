@@ -9,8 +9,10 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from . import events
 from .models import (
     ApiToken,
+    EventLog,
     ChatSession,
     Entry,
     Flashcard,
@@ -23,6 +25,7 @@ from .models import (
 )
 from .services import (
     achievements,
+    cache as cache_service,
     export,
     garden,
     graph,
@@ -1209,6 +1212,7 @@ class SmokeTests(BaseTestCase):
         "/timeline/",
         "/insights/",
         "/todos/",
+        "/activity/",
         "/api/docs/",
         "/settings/api/",
         "/weekly/",
@@ -1617,3 +1621,190 @@ class TodoTests(BaseTestCase):
         self.assertEqual(len(groups), 2)
         counts = sorted(group["total"] for group in groups)
         self.assertEqual(counts, [1, 2])
+
+
+class CacheTests(BaseTestCase):
+    """缓存层：命中复用、数据变化后自动失效。"""
+
+    def test_cached_function_is_reused(self):
+        calls = []
+
+        @cache_service.cached("unittest", ttl=60)
+        def compute(user):
+            calls.append(user.id)
+            return {"value": len(calls)}
+
+        first = compute(self.alice)
+        second = compute(self.alice)
+        self.assertEqual(first, second)
+        self.assertEqual(len(calls), 1)
+
+    def test_cache_is_user_scoped(self):
+        calls = []
+
+        @cache_service.cached("unittest", ttl=60)
+        def compute(user):
+            calls.append(user.id)
+            return {"value": len(calls)}
+
+        compute(self.alice)
+        compute(self.bob)
+        self.assertEqual(len(calls), 2)
+
+    def test_cache_refreshes_after_data_change(self):
+        first = stats.overview(self.alice)["entry_count"]
+        Entry.objects.create(topic=self.topic, text="又写了一条")
+        second = stats.overview(self.alice)["entry_count"]
+        self.assertEqual(second, first + 1)
+
+    def test_invalidate_bumps_epoch(self):
+        before = cache_service.epoch(self.alice.id)
+        cache_service.invalidate(self.alice.id)
+        self.assertNotEqual(cache_service.epoch(self.alice.id), before)
+
+    def test_cache_stats_are_reported(self):
+        cache_service.reset_stats()
+        stats.overview(self.alice)
+        stats.overview(self.alice)
+        report = cache_service.stats()
+        self.assertGreaterEqual(report["hit"], 1)
+
+
+class EventBusTests(BaseTestCase):
+    """事件总线：写库、幂等与降级投递。"""
+
+    def test_publish_writes_event(self):
+        events.publish("topic_created", self.alice, "新建主题「测试」")
+        record = EventLog.objects.get(user=self.alice)
+        self.assertEqual(record.kind, "topic_created")
+        self.assertEqual(record.summary, "新建主题「测试」")
+
+    def test_store_is_idempotent(self):
+        payload = {
+            "event_id": "fixed-id",
+            "kind": "entry_created",
+            "summary": "写了一条笔记",
+            "payload": {},
+            "user_id": self.alice.id,
+            "topic_id": None,
+        }
+        self.assertTrue(events.store(payload))
+        self.assertFalse(events.store(payload))
+        self.assertEqual(EventLog.objects.filter(user=self.alice).count(), 1)
+
+    def test_deliver_falls_back_to_stream(self):
+        with patch("learning_logs.messaging.stream.publish_stream", return_value=True):
+            channel = events.deliver({"event_id": "x", "user_id": self.alice.id})
+        self.assertEqual(channel, "redis-stream")
+
+    def test_deliver_without_backends_stays_local(self):
+        with patch("learning_logs.messaging.stream.publish_stream", return_value=False):
+            channel = events.deliver({"event_id": "x", "user_id": self.alice.id})
+        self.assertEqual(channel, "local")
+
+    def test_kafka_producer_reports_failure(self):
+        with override_settings(KAFKA_ENABLED=True, KAFKA_BOOTSTRAP_SERVERS=["127.0.0.1:1"]):
+            from learning_logs.messaging.kafka_producer import KafkaProducer
+
+            producer = KafkaProducer()
+            self.assertFalse(producer.publish({"event_id": "x", "user_id": 1}))
+
+
+class ActivityTests(BaseTestCase):
+    """活动流页面与事件写入。"""
+
+    def test_activity_page(self):
+        response = self.client.get(reverse("learning_logs:activity"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "活动流")
+
+    def test_new_topic_records_event(self):
+        self.client.post(reverse("learning_logs:new_topic"), {"text": "新建的主题"})
+        self.assertTrue(
+            EventLog.objects.filter(user=self.alice, kind="topic_created").exists()
+        )
+
+    def test_new_entry_records_event(self):
+        self.client.post(
+            reverse("learning_logs:new_entry", args=[self.topic.id]),
+            {"text": "今天学了什么"},
+        )
+        self.assertTrue(
+            EventLog.objects.filter(user=self.alice, kind="entry_created").exists()
+        )
+
+    def test_activity_shows_only_own_events(self):
+        events.publish("topic_created", self.bob, "Bob 的主题")
+        response = self.client.get(reverse("learning_logs:activity"))
+        self.assertNotContains(response, "Bob 的主题")
+
+    def test_activity_filters_by_kind(self):
+        events.publish("topic_created", self.alice, "主题事件")
+        events.publish("entry_created", self.alice, "笔记事件")
+        response = self.client.get(
+            reverse("learning_logs:activity"), {"kind": "entry_created"}
+        )
+        self.assertContains(response, "笔记事件")
+        self.assertNotContains(response, "主题事件")
+
+
+@override_settings(
+    CHANNEL_LAYERS={"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+)
+class LiveBoardTests(BaseTestCase):
+    """实时看板页面与 WebSocket 通道。"""
+
+    def test_live_page(self):
+        response = self.client.get(reverse("learning_logs:live_board"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "live-app")
+        self.assertContains(response, "实时看板")
+
+    def test_live_page_shows_metrics(self):
+        before = self.client.get(reverse("learning_logs:live_board"))
+        count = before.context["initial"]["metrics"]["entries"]
+        Entry.objects.create(topic=self.topic, text="今天写了一篇")
+        after = self.client.get(reverse("learning_logs:live_board"))
+        self.assertEqual(after.context["initial"]["metrics"]["entries"], count + 1)
+
+    def test_websocket_rejects_anonymous(self):
+        from asgiref.sync import async_to_sync
+        from channels.testing import WebsocketCommunicator
+        from django.contrib.auth.models import AnonymousUser
+
+        from learning_logs.consumers import LiveConsumer
+
+        async def run():
+            communicator = WebsocketCommunicator(LiveConsumer.as_asgi(), "/ws/live/")
+            communicator.scope["user"] = AnonymousUser()
+            connected, _ = await communicator.connect()
+            return connected
+
+        self.assertFalse(async_to_sync(run)())
+
+    def test_websocket_answers_ping(self):
+        from asgiref.sync import async_to_sync
+        from channels.db import database_sync_to_async
+        from channels.testing import WebsocketCommunicator
+
+        from learning_logs.consumers import LiveConsumer
+
+        user_id = self.alice.id
+
+        async def run():
+            user = await database_sync_to_async(
+                lambda: type(self.alice).objects.get(pk=user_id)
+            )()
+            communicator = WebsocketCommunicator(LiveConsumer.as_asgi(), "/ws/live/")
+            communicator.scope["user"] = user
+            connected, _ = await communicator.connect()
+            hello = await communicator.receive_json_from()
+            await communicator.send_json_to({"type": "ping"})
+            reply = await communicator.receive_json_from()
+            await communicator.disconnect()
+            return connected, hello, reply
+
+        connected, hello, reply = async_to_sync(run)()
+        self.assertTrue(connected)
+        self.assertEqual(hello["type"], "ready")
+        self.assertEqual(reply["type"], "pong")

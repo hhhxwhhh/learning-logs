@@ -98,6 +98,10 @@ urlpatterns = [
     path("timeline/", views.timeline, name="timeline"),
     # 学习洞察
     path("insights/", views.insights, name="insights"),
+    # 实时看板
+    path("live/", views.live_board, name="live_board"),
+    # 活动流
+    path("activity/", views.activity, name="activity"),
     # 待办清单
     path("todos/", views.todos, name="todos"),
     path("todos/<int:entry_id>/toggle/", views.toggle_todo, name="toggle_todo"),

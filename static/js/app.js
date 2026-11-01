@@ -452,6 +452,7 @@
     l: "/timeline/",
     j: "/insights/",
     k: "/todos/",
+    v: "/activity/",
   };
 
   var pending = false;
