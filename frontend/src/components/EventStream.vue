@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from "vue";
+import { bucketOf, countByBucket, filterEvents, relativeTime, clockTime } from "../lib/live";
 
 const props = defineProps({
   events: { type: Array, default: () => [] },
@@ -17,45 +18,8 @@ const KINDS = [
   { value: "topic", label: "主题" },
 ];
 
-function bucket(kind) {
-  if (!kind) return "other";
-  const head = String(kind).split("_")[0];
-  return ["entry", "session", "card", "todo", "topic"].includes(head) ? head : "other";
-}
-
-const grouped = computed(() => {
-  const counts = {};
-  for (const event of props.events) {
-    const key = bucket(event.kind);
-    counts[key] = (counts[key] || 0) + 1;
-  }
-  return counts;
-});
-
-const visible = computed(() => {
-  if (props.activeKind === "all") return props.events;
-  return props.events.filter((event) => bucket(event.kind) === props.activeKind);
-});
-
-function relativeTime(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (diff < 5) return "刚刚";
-  if (diff < 60) return `${diff} 秒前`;
-  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
-  return date.toLocaleDateString("zh-CN");
-}
-
-function clock(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? ""
-    : date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
+const grouped = computed(() => countByBucket(props.events));
+const visible = computed(() => filterEvents(props.events, props.activeKind));
 </script>
 
 <template>
@@ -86,9 +50,9 @@ function clock(value) {
           <div class="list__main">
             <span class="list__title">{{ event.summary || event.label }}</span>
             <span class="list__meta">
-              <span class="tag tag--{{ bucket(event.kind) }}">{{ event.label || event.kind }}</span>
+              <span class="tag tag--{{ bucketOf(event.kind) }}">{{ event.label || event.kind }}</span>
               <span v-if="event.topic">{{ event.topic }}</span>
-              <span :title="clock(event.created_at)">{{ relativeTime(event.created_at) }}</span>
+              <span :title="clockTime(event.created_at)">{{ relativeTime(event.created_at) }}</span>
             </span>
           </div>
         </li>

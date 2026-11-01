@@ -53,6 +53,7 @@
 **前端**
 
 - Vue 3 + Vite 5：实时看板单页应用，构建产物落在 `static/live/`
+- Vitest + @vue/test-utils：41 个前端用例，覆盖看板逻辑与组件
 - 其余页面仍是 Django 服务端渲染，CSS 设计系统在 `static/css/app.css`
 - 无 CDN 依赖，字体与图标本地化
 
@@ -133,6 +134,7 @@ python manage.py consume_events --source=auto
 cd frontend
 npm install
 npm run build          # 产物输出到 ../static/live/
+npm test               # 前端单元测试
 ```
 
 ## 模型配置

@@ -1,21 +1,12 @@
 <script setup>
 import { computed } from "vue";
+import { barHeights } from "../lib/live";
 
 const props = defineProps({
   series: { type: Array, default: () => [] },
 });
 
-const MAX_BAR = 96;
-
-const bars = computed(() => {
-  const rows = props.series || [];
-  if (!rows.length) return [];
-  const peak = Math.max(...rows.map((row) => Number(row.count || 0)), 1);
-  return rows.map((row) => ({
-    ...row,
-    height: Math.max(4, Math.round((Number(row.count || 0) / peak) * MAX_BAR)),
-  }));
-});
+const bars = computed(() => barHeights(props.series));
 
 function label(value) {
   if (!value) return "";

@@ -1,16 +1,9 @@
 <script setup>
+import { durationText } from "../lib/live";
+
 defineProps({
   metrics: { type: Object, default: () => ({}) },
 });
-
-function duration(minutes) {
-  const value = Number(minutes || 0);
-  const hours = Math.floor(value / 60);
-  const rest = value % 60;
-  if (hours && rest) return `${hours} 小时 ${rest} 分`;
-  if (hours) return `${hours} 小时`;
-  return `${rest} 分钟`;
-}
 </script>
 
 <template>
@@ -22,7 +15,7 @@ function duration(minutes) {
     </div>
     <div class="metric">
       <span class="metric__label">专注时长</span>
-      <span class="metric__value" style="font-size: 1.3rem">{{ duration(metrics.minutes) }}</span>
+      <span class="metric__value" style="font-size: 1.3rem">{{ durationText(metrics.minutes) }}</span>
       <span class="metric__hint">番茄钟与计时</span>
     </div>
     <div class="metric">

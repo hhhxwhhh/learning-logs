@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import MetricCards from "./components/MetricCards.vue";
 import EventStream from "./components/EventStream.vue";
 import TrendChart from "./components/TrendChart.vue";
+import { applyMetrics, prependEvent } from "./lib/live";
 
 const props = defineProps({
   initial: { type: Object, default: () => ({}) },
@@ -51,8 +52,8 @@ function connect() {
     }
     if (data.type !== "event" || !data.event) return;
     const event = data.event;
-    events.value = [event, ...events.value].slice(0, 50);
-    applyMetrics(event);
+    events.value = prependEvent(events.value, event);
+    updateMetrics(event);
   };
 
   socket.onclose = () => {
@@ -63,23 +64,10 @@ function connect() {
   };
 }
 
-function applyMetrics(event) {
-  const kind = event.kind;
-  if (kind === "entry_created" || kind === "entry_updated") {
-    metrics.value = {
-      ...metrics.value,
-      entries: (metrics.value.entries || 0) + (kind === "entry_created" ? 1 : 0),
-    };
+function updateMetrics(event) {
+  metrics.value = applyMetrics(metrics.value, event);
+  if (event.kind === "entry_created") {
     bumpToday();
-  } else if (kind === "session_ended") {
-    const minutes = (event.payload || {}).minutes || 0;
-    metrics.value = { ...metrics.value, minutes: (metrics.value.minutes || 0) + minutes };
-  } else if (kind === "todo_toggled") {
-    const done = (event.payload || {}).done;
-    metrics.value = {
-      ...metrics.value,
-      todos: Math.max(0, (metrics.value.todos || 0) + (done ? -1 : 1)),
-    };
   }
 }
 
