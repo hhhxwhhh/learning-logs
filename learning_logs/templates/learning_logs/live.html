@@ -1,0 +1,32 @@
+{% extends "learning_logs/base.html" %}
+{% load static %}
+
+{% block title %}实时看板 · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">Live</div>
+    <h1>实时看板</h1>
+    <p>页面打开后会自动连上 WebSocket，写笔记、结束专注时这边立刻有反应。</p>
+  </div>
+  <div class="cluster">
+    <span class="badge badge--outline" id="live-connection">连接中</span>
+  </div>
+</div>
+
+{{ initial|json_script:"live-initial" }}
+<div id="live-app" data-ws-url="{{ ws_url }}">
+  <noscript>实时看板需要 JavaScript。也可以直接查看 <a href="{% url 'learning_logs:activity' %}">活动流</a>。</noscript>
+</div>
+
+<p class="muted small mt-3">
+  实时通道由 Channels 提供，多进程部署时需要配置 Redis 通道层；
+  没有 Redis 时看板仍能显示首屏数据，只是不会自动刷新。
+</p>
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="{% static 'live/app.css' %}" />
+<script src="{% static 'live/app.js' %}" defer></script>
+{% endblock %}
