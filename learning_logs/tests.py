@@ -1833,6 +1833,76 @@ class LiveBoardTests(BaseTestCase):
         self.assertEqual(hello["type"], "ready")
         self.assertEqual(reply["type"], "pong")
 
+    def test_websocket_event_payload_matches_page_shape(self):
+        """推送的事件结构要和看板首屏一致。
+
+        channel layer 交给 handler 的是整条消息，consumer 必须把里面的
+        event 数据拆出来，否则前端拿到的 kind/summary 都是空。
+        """
+        from asgiref.sync import async_to_sync
+        from channels.db import database_sync_to_async
+        from channels.testing import WebsocketCommunicator
+
+        from learning_logs.consumers import LiveConsumer
+
+        user_id = self.alice.id
+        topic_id = self.topic.id
+
+        async def run():
+            user = await database_sync_to_async(
+                lambda: type(self.alice).objects.get(pk=user_id)
+            )()
+            communicator = WebsocketCommunicator(LiveConsumer.as_asgi(), "/ws/live/")
+            communicator.scope["user"] = user
+            connected, _ = await communicator.connect()
+            await communicator.receive_json_from()  # ready
+
+            await communicator.send_json_to({"type": "ping"})
+            await communicator.receive_json_from()  # pong
+
+            # 模拟 channel layer 投递：整条消息进 handler
+            await communicator.send_input(
+                {
+                    "type": "live.event",
+                    "event": {
+                        "event_id": "evt-1",
+                        "kind": "entry_created",
+                        "label": "新建笔记",
+                        "summary": "在「主题」写了一条笔记",
+                        "topic": "主题",
+                        "topic_id": topic_id,
+                        "payload": {},
+                        "user_id": user_id,
+                        "created_at": "2026-01-01T00:00:00+00:00",
+                    },
+                }
+            )
+            message = await communicator.receive_json_from()
+            await communicator.disconnect()
+            return connected, message
+
+        connected, message = async_to_sync(run)()
+        self.assertTrue(connected)
+        self.assertEqual(message["type"], "event")
+        event = message["event"]
+        self.assertEqual(event["kind"], "entry_created")
+        self.assertEqual(event["summary"], "在「主题」写了一条笔记")
+        self.assertEqual(event["event_id"], "evt-1")
+
+    def test_published_event_carries_label_and_topic(self):
+        """事件在总线上的格式要和看板首屏一致。"""
+        events.publish(
+            "entry_created",
+            self.alice,
+            "在「主题」写了一条笔记",
+            topic=self.topic,
+        )
+        record = EventLog.objects.filter(user=self.alice).order_by("-id").first()
+        payload = events.to_dict(record)
+        self.assertEqual(payload["label"], "新建笔记")
+        self.assertEqual(payload["topic"], self.topic.text)
+        self.assertEqual(payload["topic_id"], self.topic.id)
+
 
 class ApiV2Tests(BaseTestCase):
     """DRF 版接口：鉴权、分页、过滤与写入。"""

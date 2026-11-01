@@ -1677,8 +1677,7 @@ def live_board(request):
                 "created_at": item.created_at.isoformat(),
             }
             for item in recent
-        ],
-    }
+        ],    }
 
     return render(
         request,

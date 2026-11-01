@@ -37,6 +37,16 @@ class LiveConsumer(AsyncJsonWebsocketConsumer):
         if content.get("type") == "ping":
             await self.send_json({"type": "pong"})
 
-    async def live_event(self, event):
-        """事件总线投递过来的学习事件。"""
+    async def live_event(self, message):
+        """事件总线投递过来的学习事件。
+
+        channel layer 传进来的是整条消息（含 type 字段），真正的业务数据在
+        消息的 event 键里。这里统一拆出来，保证前端拿到的结构与接口一致。
+        """
+        if isinstance(message, dict):
+            event = message.get("event")
+            if event is None:
+                event = {k: v for k, v in message.items() if k != "type"}
+        else:  # pragma: no cover - 理论上不会走到
+            event = message
         await self.send_json({"type": "event", "event": event})

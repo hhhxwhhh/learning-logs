@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from .models import EventLog
+from .models import EventLog, Topic
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +37,26 @@ def publish(kind: str, user, summary: str, *, topic=None, payload: dict | None =
 
 
 def to_dict(record: EventLog) -> dict:
-    """事件在总线上的标准格式。"""
+    """事件在总线上的标准格式。
+
+    字段与看板首屏渲染的数据保持一致，前端收到推送后不需要另做一套解析。
+    """
+    topic_text = ""
+    if record.topic_id:
+        try:
+            topic_text = record.topic.text
+        except Topic.DoesNotExist:  # pragma: no cover - 主题刚被删
+            topic_text = ""
+
     return {
         "event_id": record.event_id,
         "kind": record.kind,
+        "label": record.label,
         "summary": record.summary,
+        "topic": topic_text,
+        "topic_id": record.topic_id,
         "payload": record.payload or {},
         "user_id": record.user_id,
-        "topic_id": record.topic_id,
         "created_at": record.created_at.isoformat(),
     }
 
