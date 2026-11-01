@@ -5,6 +5,7 @@ from .models import (
     ChatSession,
     Comment,
     Entry,
+    EventLog,
     LearningGoal,
     LearningPath,
     PathStep,
@@ -39,6 +40,15 @@ class EntryAdmin(admin.ModelAdmin):
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):
     list_display = ("user", "entry", "created_at")
+
+
+@admin.register(EventLog)
+class EventLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "kind", "user", "summary", "event_id")
+    list_filter = ("kind",)
+    search_fields = ("summary", "event_id")
+    readonly_fields = ("event_id", "created_at")
+    date_hierarchy = "created_at"
 
 
 @admin.register(LearningGoal)
