@@ -91,3 +91,95 @@ def run(user, prompt: str, provider=None, model: str | None = None, max_steps: i
         "steps": steps,
         "error": "max_steps",
     }
+
+
+def run_stream(
+    user,
+    prompt: str,
+    provider=None,
+    model: str | None = None,
+    max_steps: int = MAX_STEPS,
+):
+    """流式跑一轮 Agent。
+
+    逐个产出事件字典：
+    - ``{"type": "delta", "text": ...}`` 模型输出的文本增量
+    - ``{"type": "step", "step": {...}}`` 一次工具调用完成
+    - ``{"type": "done", "answer": ..., "steps": [...]}`` 结束
+    - ``{"type": "error", "message": ...}`` 出错
+    """
+    prompt = (prompt or "").strip()
+    if not prompt:
+        yield {"type": "error", "message": "请描述你想做的事。"}
+        return
+
+    provider = provider or get_provider()
+    messages = [
+        Message("system", SYSTEM_PROMPT),
+        Message("user", prompt),
+    ]
+    steps: list[dict] = []
+    answer_parts: list[str] = []
+
+    for _ in range(max_steps):
+        try:
+            events = provider.chat_stream(messages, model=model, tools=tools.specs())
+        except AttributeError:
+            # Provider 不支持流式，退回一次性调用
+            result = run(user, prompt, provider=provider, model=model, max_steps=max_steps)
+            if result.get("answer"):
+                yield {"type": "delta", "text": result["answer"]}
+            yield {
+                "type": "done",
+                "answer": result.get("answer", ""),
+                "steps": result.get("steps", []),
+                "error": result.get("error", ""),
+            }
+            return
+
+        calls: list[dict] = []
+        try:
+            for event in events:
+                kind = event.get("type")
+                if kind == "delta":
+                    text = event.get("text") or ""
+                    answer_parts.append(text)
+                    yield {"type": "delta", "text": text}
+                elif kind == "tool_calls":
+                    calls = event.get("calls") or []
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Agent 流式调用失败", exc_info=True)
+            yield {"type": "error", "message": str(exc)}
+            return
+
+        if not calls:
+            yield {
+                "type": "done",
+                "answer": "".join(answer_parts),
+                "steps": steps,
+                "error": "",
+            }
+            return
+
+        messages.append(Message("assistant", "", tool_calls=calls))
+        for call in calls:
+            name = call.get("name", "")
+            arguments = call.get("arguments") or {}
+            output = tools.run(user, name, arguments)
+            step = {"tool": name, "arguments": arguments, "output": output}
+            steps.append(step)
+            yield {"type": "step", "step": step}
+            messages.append(
+                Message(
+                    "tool",
+                    json.dumps(output, ensure_ascii=False, default=str),
+                    tool_call_id=call.get("id", ""),
+                    name=name,
+                )
+            )
+        answer_parts.clear()
+
+    yield {
+        "type": "error",
+        "message": "这次调用步数用完了，可以把问题拆小一点再问一次。",
+    }

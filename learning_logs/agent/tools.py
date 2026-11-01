@@ -342,3 +342,151 @@ def create_todo(user, topic: str = "", text: str = "") -> dict:
         payload={"entry_id": entry.id, "via": "agent"},
     )
     return {"ok": True, "entry_id": entry.id, "todo": text}
+
+
+@register(
+    "review_card",
+    "给一张闪卡打分并按 SM-2 更新下次复习时间。quality 取 0-5，低于 3 视为遗忘。",
+    {
+        "type": "object",
+        "properties": {
+            "card_id": {"type": "integer", "description": "闪卡 ID"},
+            "quality": {"type": "integer", "description": "0-5 分，3 及以上算记住"},
+        },
+        "required": ["card_id", "quality"],
+    },
+)
+def review_card(user, card_id: int = 0, quality: int = 0) -> dict:
+    from learning_logs import events
+
+    try:
+        card = Flashcard.objects.get(pk=int(card_id), user=user)
+    except (Flashcard.DoesNotExist, TypeError, ValueError):
+        return {"ok": False, "error": f"没有找到闪卡：{card_id}"}
+
+    try:
+        score = int(quality)
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "quality 必须是数字"}
+
+    due = card.review(score)
+    events.publish(
+        "card_reviewed",
+        user,
+        f"复习了「{card.front[:30]}」",
+        topic=card.topic,
+        payload={"card_id": card.id, "quality": score, "via": "agent"},
+    )
+    return {
+        "ok": True,
+        "card_id": card.id,
+        "quality": score,
+        "next_due": due.isoformat(),
+        "interval_days": card.interval_days,
+    }
+
+
+@register(
+    "update_entry",
+    "修改一条已有笔记的内容。需要先知道笔记 ID。",
+    {
+        "type": "object",
+        "properties": {
+            "entry_id": {"type": "integer", "description": "笔记 ID"},
+            "text": {"type": "string", "description": "新的笔记内容"},
+        },
+        "required": ["entry_id", "text"],
+    },
+)
+def update_entry(user, entry_id: int = 0, text: str = "") -> dict:
+    from learning_logs import events
+    from learning_logs.services import cache as cache_service
+
+    text = (text or "").strip()
+    if not text:
+        return {"ok": False, "error": "text 不能为空"}
+
+    entry = Entry.objects.filter(pk=entry_id, topic__owner=user).first()
+    if entry is None:
+        return {"ok": False, "error": f"没有找到笔记：{entry_id}"}
+
+    entry.text = text
+    entry.save()
+    events.publish(
+        "entry_updated",
+        user,
+        f"修改了「{entry.topic.text}」的一条笔记",
+        topic=entry.topic,
+        payload={"entry_id": entry.id, "via": "agent"},
+    )
+    cache_service.invalidate(user.id)
+    return {"ok": True, "entry_id": entry.id, "topic": entry.topic.text}
+
+
+@register(
+    "delete_flashcard",
+    "删除一张闪卡。",
+    {
+        "type": "object",
+        "properties": {
+            "card_id": {"type": "integer", "description": "闪卡 ID"},
+        },
+        "required": ["card_id"],
+    },
+)
+def delete_flashcard(user, card_id: int = 0) -> dict:
+    from learning_logs import events
+
+    card = Flashcard.objects.filter(pk=card_id, user=user).first()
+    if card is None:
+        return {"ok": False, "error": f"没有找到闪卡：{card_id}"}
+
+    topic = card.topic
+    front = card.front
+    card.delete()
+    events.publish(
+        "card_deleted",
+        user,
+        f"删除了一张闪卡：{front[:30]}",
+        topic=topic,
+        payload={"card_id": int(card_id), "via": "agent"},
+    )
+    return {"ok": True, "card_id": int(card_id)}
+
+
+@register(
+    "list_tags",
+    "列出当前用户使用过的标签与使用次数。",
+    {"type": "object", "properties": {}},
+)
+def list_tags(user) -> dict:
+    from learning_logs.models import TaggedItem
+
+    rows = (
+        TaggedItem.objects.filter(tag__user=user)
+        .values("tag__name")
+        .annotate(total=Count("id"))
+        .order_by("-total")[:40]
+    )
+    return {
+        "ok": True,
+        "tags": [{"name": row["tag__name"], "count": row["total"]} for row in rows],
+    }
+
+
+@register(
+    "get_timeline",
+    "按月汇总当前的笔记数、闪卡数与学习时长。",
+    {
+        "type": "object",
+        "properties": {
+            "months": {"type": "integer", "description": "回看几个月，默认 6"}
+        },
+    },
+)
+def get_timeline(user, months: int = 6) -> dict:
+    from learning_logs.services import timeline as timeline_service
+
+    months = max(1, min(int(months or 6), 24))
+    data = timeline_service.build(user, months=months)
+    return {"ok": True, "months": months, "months_data": data.get("months", [])}

@@ -1,3 +1,4 @@
+import json
 import logging
 import random
 import secrets
@@ -9,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -1694,6 +1695,8 @@ def agent(request):
     error = ""
 
     if request.method == "POST":
+        # 页面本身只负责渲染；实际问答走 /agent/stream/ 的 SSE 接口。
+        # 这里保留同步分支，方便没有 JS 时直接提交表单。
         prompt = (request.POST.get("prompt") or "").strip()
         model = request.POST.get("model") or None
         if not prompt:
@@ -1721,3 +1724,30 @@ def agent(request):
             "models": available_models(),
         },
     )
+
+
+@login_required
+@require_POST
+def agent_stream(request):
+    """Agent 的流式接口：SSE 逐步返回文本与工具调用。"""
+    prompt = (request.POST.get("prompt") or "").strip()
+    model = request.POST.get("model") or None
+    if not prompt:
+        return JsonResponse({"error": "先描述一下你想做的事。"}, status=400)
+
+    def events():
+        try:
+            for event in agent_runtime.run_stream(
+                request.user, prompt, model=resolve_model(model) if model else None
+            ):
+                yield f"event: {event.get('type', 'message')}\n"
+                yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+        except AIError as exc:
+            payload = {"type": "error", "message": str(exc)}
+            yield "event: error\n"
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    response = StreamingHttpResponse(events(), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response

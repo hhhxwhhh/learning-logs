@@ -122,6 +122,7 @@ urlpatterns = [
     path("insights/", views.insights, name="insights"),
     # Agent 对话
     path("agent/", views.agent, name="agent"),
+    path("agent/stream/", views.agent_stream, name="agent_stream"),
     # 实时看板
     path("live/", views.live_board, name="live_board"),
     # 活动流

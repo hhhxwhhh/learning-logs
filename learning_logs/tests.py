@@ -2115,3 +2115,140 @@ class RequestLogTests(BaseTestCase):
         with self.assertLogs("zhiji.request", level="INFO") as logs:
             self.client.get("/healthz/")
         self.assertTrue(any("/healthz/" in line for line in logs.output))
+
+
+class AgentToolTests(BaseTestCase):
+    """新增的 Agent 工具。"""
+
+    def test_review_card_updates_schedule(self):
+        card = Flashcard.objects.create(
+            user=self.alice, topic=self.topic, front="什么是惰性求值", back="用到才查库"
+        )
+        result = agent_tools.run(self.alice, "review_card", {"card_id": card.id, "quality": 4})
+        self.assertTrue(result["ok"])
+        card.refresh_from_db()
+        self.assertEqual(card.repetitions, 1)
+        self.assertEqual(card.interval_days, 1)
+
+    def test_review_card_rejects_foreign_card(self):
+        bob_card = Flashcard.objects.create(
+            user=self.bob, topic=Topic.objects.create(text="Bob", owner=self.bob),
+            front="别人的卡", back="答案",
+        )
+        result = agent_tools.run(self.alice, "review_card", {"card_id": bob_card.id, "quality": 4})
+        self.assertFalse(result["ok"])
+
+    def test_update_entry_changes_text(self):
+        result = agent_tools.run(
+            self.alice, "update_entry", {"entry_id": self.entry.id, "text": "改过的内容"}
+        )
+        self.assertTrue(result["ok"])
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.text, "改过的内容")
+
+    def test_update_entry_rejects_foreign_entry(self):
+        bob_topic = Topic.objects.create(text="Bob 主题", owner=self.bob)
+        bob_entry = Entry.objects.create(topic=bob_topic, text="别人的笔记")
+        result = agent_tools.run(
+            self.alice, "update_entry", {"entry_id": bob_entry.id, "text": "改写"}
+        )
+        self.assertFalse(result["ok"])
+        bob_entry.refresh_from_db()
+        self.assertEqual(bob_entry.text, "别人的笔记")
+
+    def test_delete_flashcard_removes_card(self):
+        card = Flashcard.objects.create(
+            user=self.alice, topic=self.topic, front="要删的卡", back="答案"
+        )
+        result = agent_tools.run(self.alice, "delete_flashcard", {"card_id": card.id})
+        self.assertTrue(result["ok"])
+        self.assertFalse(Flashcard.objects.filter(pk=card.id).exists())
+
+    def test_delete_flashcard_rejects_foreign_card(self):
+        bob_card = Flashcard.objects.create(
+            user=self.bob, topic=Topic.objects.create(text="Bob", owner=self.bob),
+            front="别人的卡", back="答案",
+        )
+        result = agent_tools.run(self.alice, "delete_flashcard", {"card_id": bob_card.id})
+        self.assertFalse(result["ok"])
+        self.assertTrue(Flashcard.objects.filter(pk=bob_card.id).exists())
+
+    def test_list_tags_counts_user_tags(self):
+        from learning_logs.models import TaggedItem, Tag
+
+        tag = Tag.objects.create(user=self.alice, name="ORM")
+        TaggedItem.objects.create(tag=tag, content_object=self.topic)
+        result = agent_tools.run(self.alice, "list_tags", {})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["tags"], [{"name": "ORM", "count": 1}])
+
+    def test_get_timeline_returns_months(self):
+        result = agent_tools.run(self.alice, "get_timeline", {"months": 3})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["months"], 3)
+        self.assertTrue(result["months_data"])
+
+    def test_new_tools_are_registered(self):
+        for name in ("review_card", "update_entry", "delete_flashcard", "list_tags", "get_timeline"):
+            self.assertIn(name, agent_tools.REGISTRY)
+
+
+class AgentStreamTests(BaseTestCase):
+    """Agent 的 SSE 流式接口。"""
+
+    class StreamProvider:
+        """模拟带工具的流式对话：先要工具，再给最终回答。"""
+
+        def __init__(self):
+            self.rounds = 0
+
+        def chat_stream(self, messages, model=None, tools=None):
+            self.rounds += 1
+            if self.rounds == 1:
+                yield {
+                    "type": "tool_calls",
+                    "calls": [
+                        {
+                            "id": "call-1",
+                            "name": "list_topics",
+                            "arguments": {},
+                        }
+                    ],
+                }
+                return
+            yield {"type": "delta", "text": "你当前有 "}
+            yield {"type": "delta", "text": "1 个主题。"}
+
+    def test_stream_emits_text_and_step(self):
+        provider = self.StreamProvider()
+        with patch("learning_logs.agent.runtime.get_provider", return_value=provider):
+            response = self.client.post(
+                reverse("learning_logs:agent_stream"), {"prompt": "我有哪些主题"}
+            )
+            self.assertEqual(response.status_code, 200)
+            # 流式响应在迭代时才执行，patch 必须在消费响应期间保持有效
+            body = b"".join(response.streaming_content).decode("utf-8")
+        self.assertIn("event: step", body)
+        self.assertIn("list_topics", body)
+        self.assertIn("event: delta", body)
+        self.assertIn("event: done", body)
+
+    def test_stream_requires_prompt(self):
+        response = self.client.post(reverse("learning_logs:agent_stream"), {"prompt": ""})
+        self.assertEqual(response.status_code, 400)
+
+    def test_stream_requires_login(self):
+        self.client.logout()
+        response = self.client.post(reverse("learning_logs:agent_stream"), {"prompt": "hi"})
+        self.assertEqual(response.status_code, 302)
+
+    def test_runtime_stream_falls_back_without_chat_stream(self):
+        class NoStream:
+            def chat(self, messages, model=None, tools=None):
+                return {"content": "同步回答", "tool_calls": []}
+
+        events = list(agent_runtime.run_stream(self.alice, "你好", provider=NoStream()))
+        kinds = [event["type"] for event in events]
+        self.assertIn("delta", kinds)
+        self.assertEqual(events[-1]["type"], "done")
+        self.assertEqual(events[-1]["answer"], "同步回答")

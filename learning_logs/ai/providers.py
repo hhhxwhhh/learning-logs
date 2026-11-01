@@ -117,6 +117,11 @@ class MockProvider:
         """离线模式下的工具调用入口：直接给说明，不请求任何工具。"""
         return {"content": self.complete(messages), "tool_calls": []}
 
+    def chat_stream(self, messages, model=None, tools=None) -> Iterator[dict]:
+        """离线模式下的流式工具对话：逐段吐出说明文字。"""
+        for text in self.stream(messages, model):
+            yield {"type": "delta", "text": text}
+
 
 class OpenAICompatibleProvider:
     """基于 openai SDK 的任意兼容服务。"""
@@ -213,6 +218,64 @@ class OpenAICompatibleProvider:
                 arguments = {}
             calls.append({"id": call.id, "name": call.function.name, "arguments": arguments})
         return {"content": message.content or "", "tool_calls": calls}
+
+    def chat_stream(
+        self,
+        messages,
+        model: str | None = None,
+        tools=None,
+    ) -> Iterator[dict]:
+        """带工具的流式对话。
+
+        逐段产出两种事件：
+        - ``{"type": "delta", "text": ...}`` 文本增量
+        - ``{"type": "tool_calls", "calls": [...]}`` 本轮的工具调用（收齐后再给）
+        """
+        payload = self._payload(list(messages), model, temperature=None, max_tokens=None)
+        payload["stream"] = True
+        payload["stream_options"] = {"include_usage": False}
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        pending: dict[int, dict] = {}
+        try:
+            client = self._client()
+            response = client.chat.completions.create(**payload)
+            for chunk in response:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                content = getattr(delta, "content", None)
+                if content:
+                    yield {"type": "delta", "text": content}
+                for call in getattr(delta, "tool_calls", None) or []:
+                    index = getattr(call, "index", 0) or 0
+                    slot = pending.setdefault(index, {"id": "", "name": "", "arguments": ""})
+                    if getattr(call, "id", None):
+                        slot["id"] = call.id
+                    function = getattr(call, "function", None)
+                    if function is None:
+                        continue
+                    if getattr(function, "name", None):
+                        slot["name"] = function.name
+                    if getattr(function, "arguments", None):
+                        slot["arguments"] += function.arguments
+        except AIError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("AI 流式工具调用失败: %s", exc)
+            raise AIError(self._friendly_error(exc)) from exc
+
+        calls = []
+        for slot in pending.values():
+            try:
+                arguments = json.loads(slot["arguments"] or "{}")
+            except (TypeError, ValueError):
+                arguments = {}
+            calls.append({"id": slot["id"], "name": slot["name"], "arguments": arguments})
+        if calls:
+            yield {"type": "tool_calls", "calls": calls}
 
     def _friendly_error(self, exc: Exception) -> str:
         text = str(exc)

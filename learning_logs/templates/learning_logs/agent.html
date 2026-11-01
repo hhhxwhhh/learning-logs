@@ -1,7 +1,7 @@
 {% extends "learning_logs/base.html" %}
 {% load ll_extras %}
 
-{% block title %}Agent · 知迹{% endblock %}
+{% block title %}学习助手 · 知迹{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -20,19 +20,20 @@
     <section class="card">
       <div class="card__head"><h3>提问</h3></div>
       <div class="card__body">
-        <form method="post" class="stack-sm">
+        <form method="post" class="stack-sm" id="agent-form">
           {% csrf_token %}
           <label class="field">
             <span class="field__label">要做的事</span>
             <textarea
               name="prompt"
+              id="agent-prompt"
               class="input input--textarea"
               rows="4"
-              placeholder="例如：把上周关于 Django ORM 的笔记整理成三张闪卡">{% if not result %}{{ request.POST.prompt|default:'' }}{% endif %}</textarea>
+              placeholder="例如：把上周关于 Django ORM 的笔记整理成三张闪卡"></textarea>
           </label>
           <label class="field">
             <span class="field__label">模型</span>
-            <select name="model" class="input">
+            <select name="model" class="input" id="agent-model">
               <option value="">默认模型</option>
               {% for item in models %}
               <option value="{{ item.id }}">{{ item.name }}</option>
@@ -40,13 +41,15 @@
             </select>
           </label>
           <div class="cluster">
-            <button type="submit" class="btn btn--primary">发送</button>
+            <button type="submit" class="btn btn--primary" id="agent-send">发送</button>
+            <button type="button" class="btn hidden" id="agent-stop">停止</button>
+            <span class="tiny muted" id="agent-status"></span>
           </div>
         </form>
       </div>
     </section>
 
-    {% if error %}
+    {% if error and not request.POST %}
     <div class="card">
       <div class="card__head"><h3>出错了</h3></div>
       <div class="card__body">
@@ -55,40 +58,22 @@
     </div>
     {% endif %}
 
-    {% if result %}
-    <section class="card">
+    <section class="card" id="agent-answer-card" hidden>
       <div class="card__head">
         <h3>回答</h3>
-        <span class="tiny muted">{{ result.steps|length }} 次工具调用</span>
+        <span class="tiny muted" id="agent-step-count"></span>
       </div>
       <div class="card__body">
-        <div class="prose">{{ result.answer|markdown }}</div>
+        <div class="prose" id="agent-answer"></div>
       </div>
     </section>
 
-    {% if result.steps %}
-    <section class="card">
+    <section class="card" id="agent-steps-card" hidden>
       <div class="card__head"><h3>调用轨迹</h3></div>
       <div class="card__body">
-        <ul class="list">
-          {% for step in result.steps %}
-          <li class="list__item">
-            <div class="list__main">
-              <span class="list__title">{{ step.tool }}</span>
-              <span class="list__meta">
-                <span>{{ step.arguments|truncatechars:80 }}</span>
-              </span>
-            </div>
-            <span class="badge {% if step.output.ok %}badge--teal{% else %}badge--accent{% endif %}">
-              {% if step.output.ok %}成功{% else %}失败{% endif %}
-            </span>
-          </li>
-          {% endfor %}
-        </ul>
+        <ul class="list" id="agent-steps"></ul>
       </div>
     </section>
-    {% endif %}
-    {% endif %}
 
     {% if history %}
     <section class="card">
@@ -128,4 +113,176 @@
     </div>
   </section>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const form = document.getElementById("agent-form");
+    const promptEl = document.getElementById("agent-prompt");
+    const modelEl = document.getElementById("agent-model");
+    const sendBtn = document.getElementById("agent-send");
+    const stopBtn = document.getElementById("agent-stop");
+    const statusEl = document.getElementById("agent-status");
+    const answerCard = document.getElementById("agent-answer-card");
+    const answerEl = document.getElementById("agent-answer");
+    const stepsCard = document.getElementById("agent-steps-card");
+    const stepsEl = document.getElementById("agent-steps");
+    const stepCountEl = document.getElementById("agent-step-count");
+    const csrf = window.LL.csrfToken();
+
+    let controller = null;
+    let streaming = false;
+
+    function setStreaming(value) {
+      streaming = value;
+      sendBtn.classList.toggle("is-disabled", value);
+      stopBtn.classList.toggle("hidden", !value);
+      statusEl.textContent = value ? "生成中…" : "";
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/[<>&]/g, function (c) {
+        return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
+      });
+    }
+
+    function addStep(step) {
+      stepsCard.hidden = false;
+      const ok = step.output && step.output.ok;
+      const li = document.createElement("li");
+      li.className = "list__item";
+      li.innerHTML =
+        '<div class="list__main">' +
+        '<span class="list__title"></span>' +
+        '<span class="list__meta"><span></span></span>' +
+        "</div>" +
+        '<span class="badge ' + (ok ? "badge--teal" : "badge--accent") + '">' +
+        (ok ? "成功" : "失败") +
+        "</span>";
+      li.querySelector(".list__title").textContent = step.tool;
+      li.querySelector(".list__meta span").textContent = JSON.stringify(step.arguments || {});
+      stepsEl.appendChild(li);
+    }
+
+    function renderAnswer(text) {
+      answerCard.hidden = false;
+      answerEl.innerHTML = escapeHtml(text).replace(/\n/g, "<br />");
+    }
+
+    async function send() {
+      if (streaming) return;
+      const text = promptEl.value.trim();
+      if (!text) {
+        statusEl.textContent = "先写点什么。";
+        return;
+      }
+
+      answerEl.innerHTML = "";
+      stepsEl.innerHTML = "";
+      stepsCard.hidden = true;
+      stepCountEl.textContent = "";
+      answerCard.hidden = false;
+      promptEl.value = "";
+      setStreaming(true);
+      controller = new AbortController();
+
+      let buffer = "";
+      let answer = "";
+
+      function handleEvent(name, payload) {
+        if (name === "delta") {
+          answer += payload.text || "";
+          renderAnswer(answer);
+        } else if (name === "step") {
+          addStep(payload.step || {});
+          stepCountEl.textContent = stepsEl.children.length + " 次工具调用";
+        } else if (name === "done") {
+          if (payload.answer) {
+            answer = payload.answer;
+            renderAnswer(answer);
+          }
+        } else if (name === "error") {
+          answerEl.innerHTML =
+            '<div class="badge badge--rose">出错了</div><p class="small muted mt-1"></p>';
+          answerEl.querySelector("p").textContent = payload.message || "未知错误";
+        }
+      }
+
+      try {
+        const response = await fetch("/agent/stream/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "X-CSRFToken": csrf,
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          body: new URLSearchParams({
+            prompt: text,
+            model: modelEl ? modelEl.value : "",
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok || !response.body) {
+          let detail = "服务返回 " + response.status;
+          try {
+            const err = await response.json();
+            detail = err.error || detail;
+          } catch (e) {}
+          throw new Error(detail);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const result = await reader.read();
+          if (result.done) break;
+          buffer += decoder.decode(result.value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop();
+          parts.forEach(function (block) {
+            let event = "message";
+            let data = "";
+            block.split("\n").forEach(function (line) {
+              if (line.startsWith("event:")) event = line.slice(6).trim();
+              else if (line.startsWith("data:")) data += line.slice(5).trim();
+            });
+            if (!data) return;
+            try {
+              handleEvent(event, JSON.parse(data));
+            } catch (e) {}
+          });
+        }
+      } catch (error) {
+        if (error.name === "AbortError") {
+          answerEl.innerHTML += '<p class="tiny muted mt-1">（已停止）</p>';
+        } else {
+          answerEl.innerHTML =
+            '<div class="badge badge--rose">请求失败</div><p class="small muted mt-1"></p>';
+          answerEl.querySelector("p").textContent = error.message;
+        }
+      } finally {
+        setStreaming(false);
+        controller = null;
+      }
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      send();
+    });
+
+    promptEl.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        send();
+      }
+    });
+
+    stopBtn.addEventListener("click", function () {
+      if (controller) controller.abort();
+    });
+  })();
+</script>
 {% endblock %}

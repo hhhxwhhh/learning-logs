@@ -536,6 +536,7 @@ class EventLog(models.Model):
         ("session_ended", "结束专注"),
         ("card_created", "新建闪卡"),
         ("card_reviewed", "复习闪卡"),
+        ("card_deleted", "删除闪卡"),
         ("todo_toggled", "勾选待办"),
         ("tag_synced", "更新标签"),
         ("path_created", "新建学习路径"),
