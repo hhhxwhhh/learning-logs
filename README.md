@@ -52,8 +52,10 @@
 
 **前端**
 
-- Vue 3 + Vite 5：实时看板单页应用，构建产物落在 `static/live/`
-- Vitest + @vue/test-utils：41 个前端用例，覆盖看板逻辑与组件
+- Vue 3 + Vite 5：实时看板应用，构建产物落在 `static/live/`
+- Vue Router 4：hash 模式，概览 / 事件流 / 趋势三个视图
+- Pinia 2：连接状态、事件流与指标集中在 store，视图只读
+- Vitest + @vue/test-utils：55 个前端用例，覆盖逻辑、store、组件与整应用装配
 - 其余页面仍是 Django 服务端渲染，CSS 设计系统在 `static/css/app.css`
 - 无 CDN 依赖，字体与图标本地化
 
@@ -176,8 +178,9 @@ learning_logs/
   events.py            事件落库、投递、实时广播
   tasks.py             Celery 任务
   consumers.py         WebSocket 消费者
+  views/               视图层，按业务域拆成 14 个模块
   management/commands/consume_events.py   事件消费命令
-frontend/              Vue 3 + Vite 源码
+frontend/              Vue 3 + Vite 源码（store / 路由 / 视图）
 static/live/           前端构建产物（入库）
 static/css/app.css     设计系统
 static/js/             主题切换、命令面板、快捷键、编辑器、番茄钟、SW

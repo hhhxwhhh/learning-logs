@@ -1,104 +1,46 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import MetricCards from "./components/MetricCards.vue";
-import EventStream from "./components/EventStream.vue";
-import TrendChart from "./components/TrendChart.vue";
-import { applyMetrics, prependEvent } from "./lib/live";
+import { RouterLink, RouterView } from "vue-router";
+import { useLiveSocket } from "./composables/useLiveSocket";
+import { useLiveStore } from "./stores/live";
 
 const props = defineProps({
   initial: { type: Object, default: () => ({}) },
   wsUrl: { type: String, default: "/ws/live/" },
 });
 
-const status = ref("connecting");
-const events = ref(props.initial.events || []);
-const metrics = ref({ ...(props.initial.metrics || {}) });
-const series = ref(props.initial.series || []);
-const activeKind = ref("all");
-let socket = null;
-let retry = null;
-let attempts = 0;
+const store = useLiveStore();
+// 首屏数据同步灌进去，路由视图首次渲染时就能拿到内容
+store.hydrate(props.initial);
 
-const statusText = computed(() => {
-  if (status.value === "open") return "已连接";
-  if (status.value === "closed") return "连接断开，正在重连";
-  return "连接中";
-});
+useLiveSocket(props.wsUrl);
 
-function endpoint() {
-  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${scheme}://${window.location.host}${props.wsUrl}`;
-}
-
-function connect() {
-  if (!window.WebSocket) {
-    status.value = "closed";
-    return;
-  }
-  status.value = "connecting";
-  socket = new WebSocket(endpoint());
-
-  socket.onopen = () => {
-    attempts = 0;
-    status.value = "open";
-  };
-
-  socket.onmessage = (message) => {
-    let data;
-    try {
-      data = JSON.parse(message.data);
-    } catch (error) {
-      return;
-    }
-    if (data.type !== "event" || !data.event) return;
-    const event = data.event;
-    events.value = prependEvent(events.value, event);
-    updateMetrics(event);
-  };
-
-  socket.onclose = () => {
-    status.value = "closed";
-    attempts += 1;
-    const delay = Math.min(1000 * 2 ** (attempts - 1), 15000);
-    retry = window.setTimeout(connect, delay);
-  };
-}
-
-function updateMetrics(event) {
-  metrics.value = applyMetrics(metrics.value, event);
-  if (event.kind === "entry_created") {
-    bumpToday();
-  }
-}
-
-function bumpToday() {
-  const rows = series.value.slice();
-  if (!rows.length) return;
-  const last = rows[rows.length - 1];
-  rows[rows.length - 1] = { ...last, count: Number(last.count || 0) + 1 };
-  series.value = rows;
-}
-
-onMounted(connect);
-onBeforeUnmount(() => {
-  if (retry) window.clearTimeout(retry);
-  if (socket) socket.close();
-});
+const tabs = [
+  { name: "overview", label: "概览" },
+  { name: "events", label: "事件流" },
+  { name: "trends", label: "趋势" },
+];
 </script>
 
 <template>
   <div class="live">
-    <div class="live__bar" :class="'live__bar--' + status">
-      <span class="live__dot"></span>
-      <span>{{ statusText }}</span>
+    <div class="live__head">
+      <nav class="live__tabs">
+        <RouterLink
+          v-for="tab in tabs"
+          :key="tab.name"
+          class="live__tab"
+          :to="{ name: tab.name }"
+        >
+          {{ tab.label }}
+        </RouterLink>
+      </nav>
+      <span class="live__bar" :class="'live__bar--' + store.status">
+        <span class="live__dot"></span>
+        <span>{{ store.statusText }}</span>
+      </span>
     </div>
 
-    <MetricCards :metrics="metrics" />
-
-    <div class="live__grid">
-      <TrendChart :series="series" />
-      <EventStream :events="events" :active-kind="activeKind" @select-kind="activeKind = $event" />
-    </div>
+    <RouterView />
   </div>
 </template>
 
@@ -109,11 +51,39 @@ onBeforeUnmount(() => {
   gap: 1.25rem;
 }
 
+.live__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.live__tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.live__tab {
+  padding: 0.25rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.live__tab.router-link-active {
+  background: var(--accent, #2563eb);
+  color: #fff;
+}
+
 .live__bar {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  align-self: flex-start;
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -138,18 +108,5 @@ onBeforeUnmount(() => {
 
 .live__bar--closed .live__dot {
   background: #ef4444;
-}
-
-.live__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 1.25rem;
-  align-items: start;
-}
-
-@media (max-width: 900px) {
-  .live__grid {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
