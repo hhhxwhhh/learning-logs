@@ -2252,3 +2252,59 @@ class AgentStreamTests(BaseTestCase):
         self.assertIn("delta", kinds)
         self.assertEqual(events[-1]["type"], "done")
         self.assertEqual(events[-1]["answer"], "同步回答")
+
+
+class ApiThrottleAuditTests(BaseTestCase):
+    """v2 接口的限流与调用记录。"""
+
+    def setUp(self):
+        super().setUp()
+        self.token = ApiToken.issue(self.alice, "测试令牌")
+        self.headers = {"HTTP_AUTHORIZATION": f"Bearer {self.token.token}"}
+
+    def test_api_call_is_recorded(self):
+        from learning_logs.models import ApiAccessLog
+
+        response = self.client.get("/api/v2/topics/", **self.headers)
+        self.assertEqual(response.status_code, 200)
+        log = ApiAccessLog.objects.filter(path="/api/v2/topics/").first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.user_id, self.alice.id)
+        self.assertEqual(log.token_id, self.token.id)
+        self.assertEqual(log.status, 200)
+
+    def test_audit_ignores_other_paths(self):
+        from learning_logs.models import ApiAccessLog
+
+        self.client.get("/api/docs/")
+        self.assertEqual(ApiAccessLog.objects.count(), 0)
+
+    def test_throttle_blocks_after_limit(self):
+        with override_settings(API_THROTTLE_RATE="2/min"):
+            cache.clear()
+            codes = [
+                self.client.get("/api/v2/topics/", **self.headers).status_code
+                for _ in range(4)
+            ]
+        self.assertIn(429, codes)
+
+    def test_throttle_cache_key_is_token_scoped(self):
+        from learning_logs.api_throttle import ApiRateThrottle
+
+        throttle = ApiRateThrottle()
+        request = self.client.get("/api/v2/topics/", **self.headers).wsgi_request
+        request.user = self.alice
+        request.api_token = self.token
+        key = throttle.get_cache_key(request, None)
+        self.assertIn(f"token-{self.token.id}", key)
+
+    def test_admin_lists_access_logs(self):
+        from django.contrib import admin as django_admin
+
+        from learning_logs.models import ApiAccessLog
+
+        ApiAccessLog.objects.create(
+            user=self.alice, token=self.token, path="/api/v2/entries/", method="GET", status=200
+        )
+        self.assertIn(ApiAccessLog, django_admin.site._registry)
+        self.assertEqual(ApiAccessLog.objects.count(), 1)

@@ -68,6 +68,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "ll_project.middleware.RequestLogMiddleware",
+    "learning_logs.api_throttle.ApiAuditMiddleware",
 ]
 
 # 生产环境优先用 WhiteNoise 直接托管静态文件（未安装时自动跳过，不影响开发）
@@ -347,6 +348,9 @@ else:
 # ---------------------------------------------------------------------------
 # Django REST Framework
 # ---------------------------------------------------------------------------
+# 开放接口的限流：按令牌计数，没有令牌时按 IP
+API_THROTTLE_RATE = os.getenv("API_THROTTLE_RATE", "240/min")
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "learning_logs.api_auth.ApiTokenAuthentication",
@@ -358,6 +362,9 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ],
     "DEFAULT_PAGINATION_CLASS": "learning_logs.api_pagination.StandardPagination",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "learning_logs.api_throttle.ApiRateThrottle",
+    ],
     "PAGE_SIZE": 20,
     "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "learning_logs.api_errors.api_exception_handler",

@@ -33,6 +33,11 @@ class ApiTokenAuthentication(BaseAuthentication):
 
         ApiToken.objects.filter(id=record.id).update(last_used_at=timezone.now())
         request.api_token = record
+        # DRF Request 内部包着原始 HttpRequest，这里也放一份，
+        # 中间件层（审计、限流）拿到的是原始 request。
+        inner = getattr(request, "_request", None)
+        if inner is not None:
+            inner.api_token = record
         return record.user, record
 
     def authenticate_header(self, request) -> str:

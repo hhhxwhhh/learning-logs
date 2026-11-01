@@ -469,6 +469,34 @@ class ApiToken(models.Model):
         return not self.revoked
 
 
+class ApiAccessLog(models.Model):
+    """开放 API 的调用记录：谁在什么时候调了哪个接口。"""
+
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="api_access_logs"
+    )
+    token = models.ForeignKey(
+        ApiToken,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="access_logs",
+    )
+    path = models.CharField("路径", max_length=200)
+    method = models.CharField("方法", max_length=8)
+    status = models.PositiveSmallIntegerField("状态码", default=200)
+    created_at = models.DateTimeField("时间", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "API 调用记录"
+        verbose_name_plural = "API 调用记录"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["-created_at"]), models.Index(fields=["user", "-created_at"])]
+
+    def __str__(self):
+        return f"{self.method} {self.path} · {self.status}"
+
+
 class TaggedItem(models.Model):
     """标签与被标记对象（主题或笔记）之间的关联。"""
 

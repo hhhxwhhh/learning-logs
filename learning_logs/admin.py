@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    ApiAccessLog,
     ChatMessage,
     ChatSession,
     Comment,
@@ -40,6 +41,15 @@ class EntryAdmin(admin.ModelAdmin):
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):
     list_display = ("user", "entry", "created_at")
+
+
+@admin.register(ApiAccessLog)
+class ApiAccessLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "method", "path", "status", "user", "token")
+    list_filter = ("method", "status")
+    search_fields = ("path",)
+    readonly_fields = ("created_at",)
+    date_hierarchy = "created_at"
 
 
 @admin.register(EventLog)

@@ -33,7 +33,7 @@
 | 站内提醒 | 到期复习、连续中断、目标临期、主题搁置等提醒 |
 | 导入中心 | 批量文本建卡、Anki CSV 上传、Markdown 笔记导入，按正面去重 |
 | 开放 API v1 | 个人令牌鉴权，JSON 接口 + 文档页 + 令牌管理 |
-| 开放 API v2 | DRF 实现，视图集、过滤、排序、分页、统一错误结构 |
+| 开放 API v2 | DRF 实现，视图集、过滤、排序、分页、统一错误结构、限流与调用审计 |
 | 活动流 | 学习动作统一落 `EventLog`，按天回看 |
 | 实时看板 | WebSocket 推送，Vue 3 单页展示当前指标与事件流 |
 | 学习助手 | 模型调用工具读写笔记、闪卡与待办，带调用轨迹 |
@@ -219,6 +219,19 @@ Agent 工具调用、导入去重、洞察规则、待办回写等。AI 调用�
 | `/u/<用户名>/` | 公开主页 |
 | `/settings/api/` `/api/docs/` | API 令牌管理、接口文档 |
 | `/features/` | 功能地图 |
+
+## 开放接口
+
+- `v1`：`/api/v1/`，原有的 JSON 接口，契约保持不变
+- `v2`：`/api/v2/`，DRF 实现，视图集 + 过滤 + 排序 + 分页 + 统一错误结构
+- 鉴权：`Authorization: Bearer <token>` 或 `?token=<token>`（命令行调试用）
+- 限流：按令牌计数，没有令牌时按 IP，默认 `240/min`，用 `API_THROTTLE_RATE` 调整
+- 审计：每次调用写入 `ApiAccessLog`，可在后台按时间与状态码查看
+
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://127.0.0.1:8000/api/v2/entries/?search=orm&page_size=20"
+```
 
 ## 运维
 
