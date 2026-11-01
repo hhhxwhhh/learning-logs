@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import Iterable, Iterator
@@ -23,8 +24,40 @@ class AIError(RuntimeError):
 
 @dataclass
 class Message:
+    """一条对话消息。
+
+    tool_calls 与 tool_call_id 只有在工具调用场景下才会用到，
+    普通问答不需要填。
+    """
+
     role: str
-    content: str
+    content: str = ""
+    tool_calls: list | None = None
+    tool_call_id: str | None = None
+    name: str | None = None
+
+
+def serialize_message(message: Message) -> dict:
+    """把消息转成 OpenAI 兼容接口需要的格式。"""
+    item: dict = {"role": message.role, "content": message.content or ""}
+    if message.role == "assistant" and message.tool_calls:
+        item["content"] = message.content or None
+        item["tool_calls"] = [
+            {
+                "id": call.get("id", ""),
+                "type": "function",
+                "function": {
+                    "name": call.get("name", ""),
+                    "arguments": json.dumps(call.get("arguments") or {}, ensure_ascii=False),
+                },
+            }
+            for call in message.tool_calls
+        ]
+    elif message.role == "tool":
+        item["tool_call_id"] = message.tool_call_id or ""
+        if message.name:
+            item["name"] = message.name
+    return item
 
 
 def available_models() -> list[dict]:
@@ -80,6 +113,10 @@ class MockProvider:
     def complete(self, messages, model=None, temperature=None, max_tokens=None) -> str:
         return "".join(self.stream(messages, model, temperature, max_tokens))
 
+    def chat(self, messages, model=None, tools=None) -> dict:
+        """离线模式下的工具调用入口：直接给说明，不请求任何工具。"""
+        return {"content": self.complete(messages), "tool_calls": []}
+
 
 class OpenAICompatibleProvider:
     """基于 openai SDK 的任意兼容服务。"""
@@ -106,7 +143,7 @@ class OpenAICompatibleProvider:
     def _payload(self, messages, model, temperature, max_tokens):
         return {
             "model": model or settings.AI_MODEL,
-            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "messages": [serialize_message(m) for m in messages],
             "temperature": (
                 settings.AI_TEMPERATURE if temperature is None else temperature
             ),
@@ -150,6 +187,32 @@ class OpenAICompatibleProvider:
         except Exception as exc:  # noqa: BLE001
             logger.warning("AI 调用失败: %s", exc)
             raise AIError(self._friendly_error(exc)) from exc
+
+    def chat(self, messages, model=None, tools=None) -> dict:
+        """带工具的对话：返回文本与工具调用列表。"""
+        payload = self._payload(list(messages), model, temperature=None, max_tokens=None)
+        payload["stream"] = False
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+        try:
+            client = self._client()
+            response = client.chat.completions.create(**payload)
+        except AIError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("AI 工具调用失败: %s", exc)
+            raise AIError(self._friendly_error(exc)) from exc
+
+        message = response.choices[0].message
+        calls = []
+        for call in getattr(message, "tool_calls", None) or []:
+            try:
+                arguments = json.loads(call.function.arguments or "{}")
+            except (TypeError, ValueError):
+                arguments = {}
+            calls.append({"id": call.id, "name": call.function.name, "arguments": arguments})
+        return {"content": message.content or "", "tool_calls": calls}
 
     def _friendly_error(self, exc: Exception) -> str:
         text = str(exc)

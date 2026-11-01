@@ -1,0 +1,131 @@
+{% extends "learning_logs/base.html" %}
+{% load ll_extras %}
+
+{% block title %}Agent · 知迹{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-head__eyebrow">工具调用</div>
+    <h1>学习助手</h1>
+    <p>模型按需调用下面的工具读写你的数据，每一次调用都会记录下来。</p>
+  </div>
+  <div class="cluster">
+    <span class="badge badge--outline">{{ tools|length }} 个工具</span>
+  </div>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <section class="card">
+      <div class="card__head"><h3>提问</h3></div>
+      <div class="card__body">
+        <form method="post" class="stack-sm">
+          {% csrf_token %}
+          <label class="field">
+            <span class="field__label">要做的事</span>
+            <textarea
+              name="prompt"
+              class="input input--textarea"
+              rows="4"
+              placeholder="例如：把上周关于 Django ORM 的笔记整理成三张闪卡">{% if not result %}{{ request.POST.prompt|default:'' }}{% endif %}</textarea>
+          </label>
+          <label class="field">
+            <span class="field__label">模型</span>
+            <select name="model" class="input">
+              <option value="">默认模型</option>
+              {% for item in models %}
+              <option value="{{ item.id }}">{{ item.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <div class="cluster">
+            <button type="submit" class="btn btn--primary">发送</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    {% if error %}
+    <div class="card">
+      <div class="card__head"><h3>出错了</h3></div>
+      <div class="card__body">
+        <p class="muted small">{{ error }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if result %}
+    <section class="card">
+      <div class="card__head">
+        <h3>回答</h3>
+        <span class="tiny muted">{{ result.steps|length }} 次工具调用</span>
+      </div>
+      <div class="card__body">
+        <div class="prose">{{ result.answer|markdown }}</div>
+      </div>
+    </section>
+
+    {% if result.steps %}
+    <section class="card">
+      <div class="card__head"><h3>调用轨迹</h3></div>
+      <div class="card__body">
+        <ul class="list">
+          {% for step in result.steps %}
+          <li class="list__item">
+            <div class="list__main">
+              <span class="list__title">{{ step.tool }}</span>
+              <span class="list__meta">
+                <span>{{ step.arguments|truncatechars:80 }}</span>
+              </span>
+            </div>
+            <span class="badge {% if step.output.ok %}badge--teal{% else %}badge--accent{% endif %}">
+              {% if step.output.ok %}成功{% else %}失败{% endif %}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+    {% endif %}
+    {% endif %}
+
+    {% if history %}
+    <section class="card">
+      <div class="card__head"><h3>最近提问</h3></div>
+      <div class="card__body">
+        <div class="list">
+          {% for item in history %}
+          <div class="list__item">
+            <div class="list__main">
+              <span class="list__title">{{ item.prompt }}</span>
+              <span class="list__meta"><span>{{ item.answer|md_plain|truncatechars:100 }}</span></span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <section class="card">
+    <div class="card__head">
+      <h3>可用工具</h3>
+      <span class="tiny muted">模型只能调这些</span>
+    </div>
+    <div class="card__body">
+      <div class="list">
+        {% for tool in tools %}
+        <div class="list__item">
+          <div class="list__main">
+            <span class="list__title">{{ tool.name }}</span>
+            <span class="list__meta"><span>{{ tool.description }}</span></span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
