@@ -201,8 +201,7 @@ LOGGING = {
 
 # ---------------------------------------------------------------------------
 # AI 配置：默认走本地 Ollama 的 OpenAI 兼容接口，也可切到任意兼容服务
-# ---------------------------------------------------------------------------
-AI_PROVIDER = os.getenv("AI_PROVIDER", "ollama")  # ollama / openai / mock
+# ---------------------------------------------------------------------------AI_PROVIDER = os.getenv("AI_PROVIDER", "ollama")  # ollama / openai / mock
 AI_BASE_URL = os.getenv("AI_BASE_URL", "http://localhost:11434/v1")
 AI_API_KEY = os.getenv("AI_API_KEY", "ollama")
 AI_MODEL = os.getenv("AI_MODEL", "qwen2.5:7b")
@@ -224,3 +223,105 @@ AI_AVAILABLE_MODELS = [
         "llama3.1:8b|Llama 3.1 · 本地",
     )
 ]
+
+# ---------------------------------------------------------------------------
+# Redis：缓存、任务队列与实时通道共用一个实例
+#
+# REDIS_URL 留空表示不依赖 Redis：缓存退回进程内缓存，异步任务同步执行，
+# WebSocket 退回单进程通道层。这样在没有基础设施的机器上也能跑起来。
+# ---------------------------------------------------------------------------
+REDIS_URL = os.getenv("REDIS_URL", "")
+
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                # Redis 不可用时静默跳过缓存，不让业务请求整体失败
+                "IGNORE_EXCEPTIONS": True,
+            },
+            "KEY_PREFIX": os.getenv("CACHE_KEY_PREFIX", "zhiji"),
+            "TIMEOUT": int(os.getenv("CACHE_TTL", "300")),
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "zhiji-locmem",
+            "TIMEOUT": int(os.getenv("CACHE_TTL", "300")),
+        }
+    }
+
+# ---------------------------------------------------------------------------
+# Celery：把周报、提醒、索引这类耗时活儿挪出请求线程
+# ---------------------------------------------------------------------------
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
+CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", not CELERY_BROKER_URL)
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    "refresh-notifications": {
+        "task": "learning_logs.tasks.refresh_notifications",
+        "schedule": 1800.0,
+    },
+    "refresh-insights": {
+        "task": "learning_logs.tasks.refresh_insights",
+        "schedule": 3600.0,
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Kafka：学习事件总线。没有 broker 时事件落到 Redis Stream 或本地库
+# ---------------------------------------------------------------------------
+KAFKA_BOOTSTRAP_SERVERS = env_list("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "zhiji.learning.events")
+KAFKA_CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "zhiji-consumer")
+KAFKA_ENABLED = env_bool("KAFKA_ENABLED", bool(KAFKA_BOOTSTRAP_SERVERS))
+KAFKA_CLIENT_ID = os.getenv("KAFKA_CLIENT_ID", "zhiji-web")
+KAFKA_PRODUCER_TIMEOUT = float(os.getenv("KAFKA_PRODUCER_TIMEOUT", "3"))
+
+# 事件总线落库保留天数与单用户活动流长度
+EVENT_LOG_RETENTION_DAYS = int(os.getenv("EVENT_LOG_RETENTION_DAYS", "30"))
+ACTIVITY_FEED_SIZE = int(os.getenv("ACTIVITY_FEED_SIZE", "60"))
+
+# ---------------------------------------------------------------------------
+# Channels：WebSocket 实时推送
+# ---------------------------------------------------------------------------
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [REDIS_URL]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
+    }
+
+# ---------------------------------------------------------------------------
+# Django REST Framework
+# ---------------------------------------------------------------------------
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "learning_logs.api_auth.ApiTokenAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "learning_logs.api_pagination.StandardPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "learning_logs.api_errors.api_exception_handler",
+}
+
