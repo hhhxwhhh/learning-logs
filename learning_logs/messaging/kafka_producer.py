@@ -70,7 +70,18 @@ class KafkaProducer:
         if producer is None:
             return False
         try:
-            producer.send(settings.KAFKA_TOPIC, key=event.get("user_id"), value=event)
+            future = producer.send(
+                settings.KAFKA_TOPIC, key=event.get("user_id"), value=event
+            )
+            # send 只是把消息放进缓冲区，真正的失败要等 broker 的确认。
+            # 等一小会儿拿结果，确认不了就当失败，交给调用方降级。
+            metadata = future.get(timeout=settings.KAFKA_PRODUCER_TIMEOUT)
+            logger.debug(
+                "Kafka 投递成功 topic=%s partition=%s offset=%s",
+                metadata.topic,
+                metadata.partition,
+                metadata.offset,
+            )
             return True
         except Exception:
             logger.warning("Kafka 投递失败", exc_info=True)

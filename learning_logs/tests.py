@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -2550,6 +2550,67 @@ class EventPipelineTests(BaseTestCase):
                     result = consumer.consume(source="auto")
         self.assertEqual(result, 3)
         stream.assert_called_once()
+
+    def test_kafka_publish_waits_for_broker_ack(self):
+        """send 只是入队，要等 broker 确认才算投递成功。"""
+        from learning_logs.messaging import kafka_producer
+
+        instance = kafka_producer.KafkaProducer()
+        fake = MagicMock()
+        future = MagicMock()
+        future.get.return_value = MagicMock(topic="t", partition=0, offset=12)
+        fake.send.return_value = future
+        instance._producer = fake
+
+        self.assertTrue(instance.publish({"event_id": "e1", "user_id": 1}))
+        future.get.assert_called_once()
+
+    def test_kafka_publish_fails_when_ack_missing(self):
+        """broker 没确认时算失败，调用方会降级到其他通道。"""
+        from learning_logs.messaging import kafka_producer
+
+        instance = kafka_producer.KafkaProducer()
+        fake = MagicMock()
+        future = MagicMock()
+        future.get.side_effect = TimeoutError("没有确认")
+        fake.send.return_value = future
+        instance._producer = fake
+
+        self.assertFalse(instance.publish({"event_id": "e1", "user_id": 1}))
+        # 失败后禁用生产器，不让每次写笔记都等一次超时
+        self.assertTrue(instance.disabled)
+
+    def test_kafka_publish_disables_after_send_error(self):
+        from learning_logs.messaging import kafka_producer
+
+        instance = kafka_producer.KafkaProducer()
+        fake = MagicMock()
+        fake.send.side_effect = RuntimeError("连接断了")
+        instance._producer = fake
+
+        self.assertFalse(instance.publish({"event_id": "e1", "user_id": 1}))
+        self.assertTrue(instance.disabled)
+
+    def test_bus_falls_back_to_stream_when_kafka_fails(self):
+        """Kafka 投递失败时事件仍然要走 Redis Stream，不能丢。"""
+        from learning_logs.messaging import bus
+
+        with override_settings(KAFKA_ENABLED=True, KAFKA_BOOTSTRAP_SERVERS=["127.0.0.1:9092"]):
+            with patch("learning_logs.messaging.kafka_producer.producer.publish", return_value=False):
+                with patch(
+                    "learning_logs.messaging.stream.publish_stream", return_value=True
+                ) as stream:
+                    channel = bus.deliver({"event_id": "e1"})
+        self.assertEqual(channel, "redis-stream")
+        stream.assert_called_once()
+
+    def test_bus_reports_local_when_no_channel(self):
+        from learning_logs.messaging import bus
+
+        with override_settings(KAFKA_ENABLED=False, KAFKA_BOOTSTRAP_SERVERS=[]):
+            with patch("learning_logs.messaging.stream.publish_stream", return_value=False):
+                channel = bus.deliver({"event_id": "e1"})
+        self.assertEqual(channel, "local")
 
     def test_stream_publish_and_read_roundtrip(self):
         from learning_logs.messaging import stream
