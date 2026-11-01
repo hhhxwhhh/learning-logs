@@ -134,80 +134,14 @@ class StatsView(APIView):
 
 
 class SchemaView(APIView):
-    """OpenAPI 文档。"""
+    """OpenAPI 文档：从视图集与序列化器自动生成。"""
 
     permission_classes = []
     authentication_classes = []
+    # 文档是公开的，不参与限流
+    throttle_classes = []
 
     def get(self, request):
-        return Response(
-            {
-                "openapi": "3.0.3",
-                "info": {
-                    "title": "知迹开放 API",
-                    "version": "2.0.0",
-                    "description": "个人学习数据接口，需要 Bearer 令牌。",
-                },
-                "servers": [{"url": "/api/v2"}],
-                "components": {
-                    "securitySchemes": {
-                        "bearer": {"type": "http", "scheme": "bearer"}
-                    }
-                },
-                "security": [{"bearer": []}],
-                "paths": {
-                    "/topics/": {
-                        "get": {
-                            "summary": "主题列表",
-                            "parameters": [
-                                {"name": "search", "in": "query", "schema": {"type": "string"}},
-                                {"name": "ordering", "in": "query", "schema": {"type": "string"}},
-                                {"name": "page", "in": "query", "schema": {"type": "integer"}},
-                            ],
-                            "responses": {"200": {"description": "分页后的主题列表"}},
-                        }
-                    },
-                    "/entries/": {
-                        "get": {
-                            "summary": "笔记列表",
-                            "parameters": [
-                                {"name": "topic", "in": "query", "schema": {"type": "integer"}},
-                                {"name": "q", "in": "query", "schema": {"type": "string"}},
-                            ],
-                            "responses": {"200": {"description": "分页后的笔记列表"}},
-                        },
-                        "post": {
-                            "summary": "新建笔记",
-                            "responses": {"201": {"description": "已创建"}},
-                        },
-                    },
-                    "/cards/": {
-                        "get": {
-                            "summary": "闪卡列表",
-                            "parameters": [
-                                {"name": "due", "in": "query", "schema": {"type": "string"}}
-                            ],
-                            "responses": {"200": {"description": "闪卡列表"}},
-                        }
-                    },
-                    "/sessions/": {
-                        "get": {
-                            "summary": "学习会话列表",
-                            "responses": {"200": {"description": "会话列表"}},
-                        }
-                    },
-                    "/events/": {
-                        "get": {
-                            "summary": "学习事件流",
-                            "responses": {"200": {"description": "事件列表"}},
-                        }
-                    },
-                    "/stats/": {
-                        "get": {
-                            "summary": "统计概览",
-                            "responses": {"200": {"description": "统计概览"}},
-                        }
-                    },
-                },
-            }
-        )
+        from .api_schema import build_openapi
+
+        return Response(build_openapi())

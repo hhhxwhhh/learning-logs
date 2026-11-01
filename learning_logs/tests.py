@@ -2308,3 +2308,43 @@ class ApiThrottleAuditTests(BaseTestCase):
         )
         self.assertIn(ApiAccessLog, django_admin.site._registry)
         self.assertEqual(ApiAccessLog.objects.count(), 1)
+
+
+class ApiSchemaTests(BaseTestCase):
+    """自动生成的 OpenAPI 文档。"""
+
+    def test_schema_contains_all_endpoints(self):
+        from learning_logs.api_schema import build_openapi
+
+        doc = build_openapi()
+        for path in ("/topics/", "/entries/", "/cards/", "/sessions/", "/events/", "/stats/"):
+            self.assertIn(path, doc["paths"])
+
+    def test_schema_includes_detail_paths(self):
+        from learning_logs.api_schema import build_openapi
+
+        doc = build_openapi()
+        self.assertIn("/topics/{id}/", doc["paths"])
+
+    def test_schema_reflects_serializer_fields(self):
+        from learning_logs.api_schema import build_openapi
+
+        doc = build_openapi()
+        item = doc["paths"]["/entries/"]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]["properties"]["results"]["items"]
+        self.assertIn("text", item["properties"])
+        self.assertIn("topic", item["properties"])
+
+    def test_schema_documents_entry_creation(self):
+        from learning_logs.api_schema import build_openapi
+
+        doc = build_openapi()
+        post = doc["paths"]["/entries/"]["post"]
+        self.assertIn("requestBody", post)
+        self.assertIn("201", post["responses"])
+
+    def test_schema_endpoint_is_public(self):
+        response = self.client.get("/api/v2/schema/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["openapi"], "3.0.3")
